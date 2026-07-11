@@ -1,0 +1,15 @@
+services:
+  db:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: quran_app
+      POSTGRES_PASSWORD: changeme
+      POSTGRES_DB: quran_app
+    ports:
+      - "5432:5432"
+    volumes:
+      - quran_app_pgdata:/var/lib/postgresql/data
+
+volumes:
+  quran_app_pgdata:

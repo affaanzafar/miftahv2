@@ -1,0 +1,294 @@
+/* -----------------------------------------------------------------------
+   Miftah design tokens
+   Palette: aged parchment ground, deep ink-teal for structure/text,
+   brass/gold for illumination accents (used sparingly — the signature
+   element is the illuminated ayah card, everything else stays quiet).
+   Type: Amiri (Naskh serif) for Arabic ayah display, Source Sans 3 for UI.
+   -------------------------------------------------------------------- */
+
+:root {
+  --parchment: #efe7d4;
+  --parchment-deep: #e4d9bd;
+  --ink: #16302b;
+  --ink-soft: #3c5750;
+  --brass: #a8823c;
+  --brass-light: #cba85f;
+  --maroon: #7a2e2e;
+  --correct: #2f6b4f;
+  --wrong: #a3402f;
+  --missed: #b08a2e;
+  --added: #6b6b8a;
+  --radius: 6px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  background: var(--parchment);
+  color: var(--ink);
+  font-family: "Source Sans 3", -apple-system, sans-serif;
+}
+
+.app-shell {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* -------------------------------- Nav ---------------------------------- */
+
+.nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 32px;
+  border-bottom: 1px solid var(--parchment-deep);
+  background: var(--parchment);
+}
+
+.nav-brand {
+  font-family: "Amiri", serif;
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--ink);
+  letter-spacing: 0.02em;
+  text-decoration: none;
+}
+
+.nav-links {
+  display: flex;
+  gap: 24px;
+  align-items: center;
+}
+
+.nav-links a {
+  color: var(--ink-soft);
+  text-decoration: none;
+  font-size: 15px;
+  font-weight: 500;
+}
+
+.nav-links a:hover,
+.nav-links a:focus-visible {
+  color: var(--brass);
+}
+
+/* ------------------------------- Layout --------------------------------- */
+
+.page {
+  flex: 1;
+  width: 100%;
+  max-width: 880px;
+  margin: 0 auto;
+  padding: 40px 24px 80px;
+}
+
+h1.page-title {
+  font-family: "Amiri", serif;
+  font-size: 34px;
+  margin: 0 0 8px;
+}
+
+.page-subtitle {
+  color: var(--ink-soft);
+  margin: 0 0 32px;
+  font-size: 16px;
+}
+
+/* --------------------------- Illuminated card ---------------------------
+   Signature element: an ayah panel bordered like manuscript illumination —
+   a brass hairline rule with corner flourishes drawn in CSS, used only
+   around Quran text (the recitation view), never decoratively elsewhere.
+   -------------------------------------------------------------------- */
+
+.illuminated-card {
+  position: relative;
+  background: #f7f2e4;
+  border: 1px solid var(--brass);
+  border-radius: var(--radius);
+  padding: 36px 32px;
+  margin-bottom: 24px;
+}
+
+.illuminated-card::before,
+.illuminated-card::after {
+  content: "";
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  border: 2px solid var(--brass-light);
+}
+
+.illuminated-card::before {
+  top: -1px;
+  left: -1px;
+  border-right: none;
+  border-bottom: none;
+}
+
+.illuminated-card::after {
+  bottom: -1px;
+  right: -1px;
+  border-left: none;
+  border-top: none;
+}
+
+.ayah-arabic {
+  font-family: "Amiri", serif;
+  font-size: 32px;
+  line-height: 2.1;
+  text-align: right;
+  direction: rtl;
+}
+
+.ayah-word {
+  display: inline-block;
+  padding: 2px 3px;
+  border-radius: 3px;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.ayah-word.correct {
+  color: var(--correct);
+}
+
+.ayah-word.wrong {
+  color: var(--wrong);
+  text-decoration: underline wavy var(--wrong);
+}
+
+.ayah-word.missed {
+  color: var(--missed);
+  opacity: 0.55;
+}
+
+.ayah-word.active {
+  background: var(--brass-light);
+  background: rgba(203, 168, 95, 0.35);
+}
+
+/* -------------------------------- Cards --------------------------------- */
+
+.card {
+  background: #fbf8f0;
+  border: 1px solid var(--parchment-deep);
+  border-radius: var(--radius);
+  padding: 20px 24px;
+  margin-bottom: 16px;
+}
+
+.card-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.card h3 {
+  margin: 0 0 4px;
+  font-size: 17px;
+}
+
+.muted {
+  color: var(--ink-soft);
+  font-size: 14px;
+}
+
+/* -------------------------------- Forms ---------------------------------- */
+
+label {
+  display: block;
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 6px;
+  color: var(--ink-soft);
+}
+
+input[type="text"],
+input[type="email"],
+input[type="password"],
+input[type="date"],
+textarea {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--parchment-deep);
+  border-radius: var(--radius);
+  background: #fff;
+  font-size: 15px;
+  margin-bottom: 18px;
+  font-family: inherit;
+  color: var(--ink);
+}
+
+input:focus-visible,
+textarea:focus-visible,
+button:focus-visible,
+a:focus-visible {
+  outline: 2px solid var(--brass);
+  outline-offset: 2px;
+}
+
+button {
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  padding: 10px 20px;
+  border-radius: var(--radius);
+  border: 1px solid var(--ink);
+  background: var(--ink);
+  color: var(--parchment);
+  cursor: pointer;
+}
+
+button.secondary {
+  background: transparent;
+  color: var(--ink);
+}
+
+button.danger {
+  background: var(--maroon);
+  border-color: var(--maroon);
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.error-banner {
+  background: #f6e2dd;
+  border: 1px solid var(--wrong);
+  color: var(--wrong);
+  padding: 10px 14px;
+  border-radius: var(--radius);
+  margin-bottom: 18px;
+  font-size: 14px;
+}
+
+.pill {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.pill.status-new {
+  background: #e9e5d6;
+  color: var(--ink-soft);
+}
+
+.pill.status-learning {
+  background: #f1e0b0;
+  color: #6b5316;
+}
+
+.pill.status-memorized {
+  background: #d7ead9;
+  color: var(--correct);
+}

@@ -1,0 +1,73 @@
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+
+export function getToken() {
+  if (typeof window === "undefined") return null;
+  return localStorage.getItem("miftah_token");
+}
+
+export function setToken(token) {
+  localStorage.setItem("miftah_token", token);
+}
+
+export function clearToken() {
+  localStorage.removeItem("miftah_token");
+}
+
+async function request(path, { method = "GET", body, auth = true } = {}) {
+  const headers = { "Content-Type": "application/json" };
+  if (auth) {
+    const token = getToken();
+    if (token) headers["Authorization"] = `Bearer ${token}`;
+  }
+
+  const res = await fetch(`${API_URL}${path}`, {
+    method,
+    headers,
+    body: body ? JSON.stringify(body) : undefined,
+  });
+
+  if (!res.ok) {
+    const detail = await res.json().catch(() => ({}));
+    throw new Error(detail.detail || `Request failed: ${res.status}`);
+  }
+  if (res.status === 204) return null;
+  return res.json();
+}
+
+export const api = {
+  register: (email, password, display_name) =>
+    request("/auth/register", { method: "POST", body: { email, password, display_name }, auth: false }),
+  login: (email, password) =>
+    request("/auth/login", { method: "POST", body: { email, password }, auth: false }),
+  me: () => request("/auth/me"),
+
+  listSurahs: () => request("/quran/surahs"),
+  getSurah: (surahId) => request(`/quran/surahs/${surahId}`),
+
+  startSession: (surah_id, start_ayah_number, end_ayah_number, is_review = false) =>
+    request("/recitation/sessions", {
+      method: "POST",
+      body: { surah_id, start_ayah_number, end_ayah_number, is_review },
+    }),
+  submitAttempt: (sessionId, ayah_id, recognized_text) =>
+    request(`/recitation/sessions/${sessionId}/attempts`, {
+      method: "POST",
+      body: { ayah_id, recognized_text },
+    }),
+  completeSession: (sessionId) =>
+    request(`/recitation/sessions/${sessionId}/complete`, { method: "POST" }),
+
+  getDueReviews: () => request("/hifz/due"),
+  getProgress: () => request("/hifz/progress"),
+  markLearning: (ayahId) => request(`/hifz/ayahs/${ayahId}/mark-learning`, { method: "POST" }),
+  applyReview: (sessionId) => request(`/hifz/sessions/${sessionId}/apply-review`, { method: "POST" }),
+  createGoal: (payload) => request("/hifz/goals", { method: "POST", body: payload }),
+  listGoals: () => request("/hifz/goals"),
+
+  listCircles: () => request("/community/circles"),
+  createCircle: (payload) => request("/community/circles", { method: "POST", body: payload }),
+  joinCircle: (circleId) => request(`/community/circles/${circleId}/join`, { method: "POST" }),
+  circleProgress: (circleId) => request(`/community/circles/${circleId}/progress`),
+  reportMember: (circleId, payload) =>
+    request(`/community/circles/${circleId}/report`, { method: "POST", body: payload }),
+};
