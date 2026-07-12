@@ -37,7 +37,9 @@
   --missed: var(--gold);
   --added: var(--violet);
 }
-
+html {
+  color-scheme: dark;
+}
 * {
   box-sizing: border-box;
 }
@@ -369,6 +371,7 @@ input[type="text"],
 input[type="email"],
 input[type="password"],
 input[type="date"],
+input[type="number"],
 select,
 textarea {
   width: 100%;
