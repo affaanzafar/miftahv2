@@ -1,24 +1,41 @@
 /* -----------------------------------------------------------------------
-   Miftah design tokens
-   Palette: aged parchment ground, deep ink-teal for structure/text,
-   brass/gold for illumination accents (used sparingly — the signature
-   element is the illuminated ayah card, everything else stays quiet).
-   Type: Amiri (Naskh serif) for Arabic ayah display, Source Sans 3 for UI.
+   Miftah — vibrant glass theme
+   A dark cosmic ground with three jewel-tone accents (emerald growth,
+   amethyst illumination, amber mastery) drifting as soft blurred orbs.
+   Every panel is frosted glass floating above that field, and glows
+   softly on hover — illumination reinterpreted through light, not ink.
+   Type: Space Grotesk (display) + Manrope (UI) + Amiri (Arabic).
    -------------------------------------------------------------------- */
 
 :root {
-  --parchment: #efe7d4;
-  --parchment-deep: #e4d9bd;
-  --ink: #16302b;
-  --ink-soft: #3c5750;
-  --brass: #a8823c;
-  --brass-light: #cba85f;
-  --maroon: #7a2e2e;
-  --correct: #2f6b4f;
-  --wrong: #a3402f;
-  --missed: #b08a2e;
-  --added: #6b6b8a;
-  --radius: 6px;
+  --void: #0a0f1e;
+  --void-deep: #060910;
+  --emerald: #2dd4a7;
+  --emerald-soft: #7ee8c9;
+  --violet: #a78bfa;
+  --violet-soft: #cabbfb;
+  --gold: #fbbf66;
+  --gold-soft: #ffd699;
+  --mist: #eaf2ef;
+  --mist-soft: #93a6a1;
+  --wrong: #ff8a80;
+  --glass: rgba(255, 255, 255, 0.055);
+  --glass-strong: rgba(255, 255, 255, 0.09);
+  --glass-border: rgba(255, 255, 255, 0.14);
+  --radius: 16px;
+  --radius-sm: 10px;
+
+  /* legacy token aliases so any untouched inline styles still resolve */
+  --parchment: var(--void);
+  --parchment-deep: var(--glass-border);
+  --ink: var(--mist);
+  --ink-soft: var(--mist-soft);
+  --brass: var(--gold);
+  --brass-light: var(--gold-soft);
+  --maroon: var(--wrong);
+  --correct: var(--emerald);
+  --missed: var(--gold);
+  --added: var(--violet);
 }
 
 * {
@@ -29,53 +46,169 @@ html,
 body {
   margin: 0;
   padding: 0;
-  background: var(--parchment);
-  color: var(--ink);
-  font-family: "Source Sans 3", -apple-system, sans-serif;
+  background: var(--void);
+  color: var(--mist);
+  font-family: "Manrope", -apple-system, sans-serif;
+  min-height: 100%;
 }
 
 .app-shell {
+  position: relative;
   min-height: 100vh;
   display: flex;
   flex-direction: column;
+  isolation: isolate;
+  overflow-x: hidden;
+}
+
+/* ------------------------------ Orb field -------------------------------- */
+
+.bg-orbs {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  pointer-events: none;
+  background: radial-gradient(ellipse at top, #0d1526 0%, var(--void-deep) 70%);
+}
+
+.bg-orbs span {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(90px);
+  opacity: 0.55;
+}
+
+.bg-orbs span:nth-child(1) {
+  width: 560px;
+  height: 560px;
+  top: -160px;
+  left: -120px;
+  background: radial-gradient(circle, var(--emerald), transparent 70%);
+  animation: orb-drift-a 26s ease-in-out infinite;
+}
+
+.bg-orbs span:nth-child(2) {
+  width: 620px;
+  height: 620px;
+  top: 20%;
+  right: -220px;
+  background: radial-gradient(circle, var(--violet), transparent 70%);
+  animation: orb-drift-b 32s ease-in-out infinite;
+}
+
+.bg-orbs span:nth-child(3) {
+  width: 480px;
+  height: 480px;
+  bottom: -200px;
+  left: 30%;
+  background: radial-gradient(circle, var(--gold), transparent 70%);
+  animation: orb-drift-c 30s ease-in-out infinite;
+}
+
+@keyframes orb-drift-a {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(60px, 40px) scale(1.08); }
+}
+
+@keyframes orb-drift-b {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(-50px, 60px) scale(1.05); }
+}
+
+@keyframes orb-drift-c {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(40px, -50px) scale(1.1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bg-orbs span {
+    animation: none !important;
+  }
+  * {
+    animation-duration: 0.001ms !important;
+    transition-duration: 0.001ms !important;
+  }
 }
 
 /* -------------------------------- Nav ---------------------------------- */
 
 .nav {
+  position: sticky;
+  top: 0;
+  z-index: 50;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 18px 32px;
-  border-bottom: 1px solid var(--parchment-deep);
-  background: var(--parchment);
+  padding: 14px 28px;
+  margin: 16px 20px 0;
+  border-radius: 999px;
+  background: var(--glass);
+  border: 1px solid var(--glass-border);
+  backdrop-filter: blur(18px) saturate(160%);
+  -webkit-backdrop-filter: blur(18px) saturate(160%);
+  transition: background 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease;
+}
+
+.nav-scrolled {
+  background: var(--glass-strong);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
+  border-color: rgba(255, 255, 255, 0.22);
 }
 
 .nav-brand {
-  font-family: "Amiri", serif;
-  font-size: 24px;
+  font-family: "Space Grotesk", serif;
+  font-size: 22px;
   font-weight: 700;
-  color: var(--ink);
-  letter-spacing: 0.02em;
+  color: var(--mist);
+  letter-spacing: 0.01em;
   text-decoration: none;
+  background: linear-gradient(120deg, var(--mist) 40%, var(--emerald-soft));
+  -webkit-background-clip: text;
+  background-clip: text;
 }
 
 .nav-links {
   display: flex;
-  gap: 24px;
+  gap: 22px;
   align-items: center;
 }
 
 .nav-links a {
-  color: var(--ink-soft);
+  color: var(--mist-soft);
   text-decoration: none;
-  font-size: 15px;
-  font-weight: 500;
+  font-size: 14px;
+  font-weight: 600;
 }
 
 .nav-links a:hover,
 .nav-links a:focus-visible {
-  color: var(--brass);
+  color: var(--gold-soft);
+}
+
+.nav-link {
+  position: relative;
+  color: var(--mist-soft);
+  text-decoration: none;
+  font-size: 14px;
+  font-weight: 600;
+  padding-bottom: 4px;
+  display: inline-block;
+}
+
+.nav-link:hover,
+.nav-link:focus-visible {
+  color: var(--gold-soft);
+}
+
+.nav-underline {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -6px;
+  height: 2px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--emerald), var(--gold));
 }
 
 /* ------------------------------- Layout --------------------------------- */
@@ -85,57 +218,64 @@ body {
   width: 100%;
   max-width: 880px;
   margin: 0 auto;
-  padding: 40px 24px 80px;
+  padding: 48px 24px 100px;
 }
 
 h1.page-title {
-  font-family: "Amiri", serif;
-  font-size: 34px;
+  font-family: "Space Grotesk", serif;
+  font-size: 38px;
+  font-weight: 700;
   margin: 0 0 8px;
+  background: linear-gradient(120deg, var(--mist), var(--violet-soft) 60%, var(--gold-soft));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
 }
 
 .page-subtitle {
-  color: var(--ink-soft);
+  color: var(--mist-soft);
   margin: 0 0 32px;
   font-size: 16px;
 }
 
 /* --------------------------- Illuminated card ---------------------------
-   Signature element: an ayah panel bordered like manuscript illumination —
-   a brass hairline rule with corner flourishes drawn in CSS, used only
-   around Quran text (the recitation view), never decoratively elsewhere.
+   Signature element: the manuscript-illumination idea, reborn as light.
+   A glass panel with a soft conic glow that sweeps in on hover, standing
+   in for the old ink-and-brass corner flourishes.
    -------------------------------------------------------------------- */
 
 .illuminated-card {
   position: relative;
-  background: #f7f2e4;
-  border: 1px solid var(--brass);
+  background: var(--glass-strong);
+  border: 1px solid var(--glass-border);
   border-radius: var(--radius);
   padding: 36px 32px;
   margin-bottom: 24px;
-}
-
-.illuminated-card::before,
-.illuminated-card::after {
-  content: "";
-  position: absolute;
-  width: 18px;
-  height: 18px;
-  border: 2px solid var(--brass-light);
+  backdrop-filter: blur(16px) saturate(150%);
+  -webkit-backdrop-filter: blur(16px) saturate(150%);
+  overflow: hidden;
+  transition: transform 0.3s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.3s ease, border-color 0.3s ease;
 }
 
 .illuminated-card::before {
-  top: -1px;
-  left: -1px;
-  border-right: none;
-  border-bottom: none;
+  content: "";
+  position: absolute;
+  inset: -2px;
+  background: conic-gradient(from 0deg, var(--emerald), var(--violet), var(--gold), var(--emerald));
+  opacity: 0;
+  z-index: -1;
+  filter: blur(18px);
+  transition: opacity 0.35s ease;
 }
 
-.illuminated-card::after {
-  bottom: -1px;
-  right: -1px;
-  border-left: none;
-  border-top: none;
+.illuminated-card:hover {
+  transform: translateY(-3px);
+  border-color: rgba(255, 255, 255, 0.28);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.4);
+}
+
+.illuminated-card:hover::before {
+  opacity: 0.35;
 }
 
 .ayah-arabic {
@@ -144,6 +284,7 @@ h1.page-title {
   line-height: 2.1;
   text-align: right;
   direction: rtl;
+  color: var(--mist);
 }
 
 .ayah-word {
@@ -154,7 +295,7 @@ h1.page-title {
 }
 
 .ayah-word.correct {
-  color: var(--correct);
+  color: var(--emerald-soft);
 }
 
 .ayah-word.wrong {
@@ -163,23 +304,34 @@ h1.page-title {
 }
 
 .ayah-word.missed {
-  color: var(--missed);
-  opacity: 0.55;
+  color: var(--gold-soft);
+  opacity: 0.65;
 }
 
 .ayah-word.active {
-  background: var(--brass-light);
-  background: rgba(203, 168, 95, 0.35);
+  background: rgba(251, 191, 102, 0.28);
 }
 
 /* -------------------------------- Cards --------------------------------- */
 
 .card {
-  background: #fbf8f0;
-  border: 1px solid var(--parchment-deep);
-  border-radius: var(--radius);
+  position: relative;
+  background: var(--glass);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-sm);
   padding: 20px 24px;
   margin-bottom: 16px;
+  backdrop-filter: blur(14px) saturate(140%);
+  -webkit-backdrop-filter: blur(14px) saturate(140%);
+  transition: transform 0.22s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.22s ease, border-color 0.22s ease, background 0.22s ease;
+  will-change: transform;
+}
+
+.card:hover {
+  transform: translateY(-3px);
+  background: var(--glass-strong);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
+  border-color: rgba(255, 255, 255, 0.24);
 }
 
 .card-row {
@@ -192,10 +344,12 @@ h1.page-title {
 .card h3 {
   margin: 0 0 4px;
   font-size: 17px;
+  font-family: "Space Grotesk", serif;
+  color: var(--mist);
 }
 
 .muted {
-  color: var(--ink-soft);
+  color: var(--mist-soft);
   font-size: 14px;
 }
 
@@ -203,94 +357,126 @@ h1.page-title {
 
 label {
   display: block;
-  font-size: 14px;
-  font-weight: 600;
+  font-size: 13px;
+  font-weight: 700;
   margin-bottom: 6px;
-  color: var(--ink-soft);
+  color: var(--mist-soft);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 
 input[type="text"],
 input[type="email"],
 input[type="password"],
 input[type="date"],
+select,
 textarea {
   width: 100%;
-  padding: 10px 12px;
-  border: 1px solid var(--parchment-deep);
-  border-radius: var(--radius);
-  background: #fff;
+  padding: 12px 14px;
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.045);
   font-size: 15px;
   margin-bottom: 18px;
   font-family: inherit;
-  color: var(--ink);
+  color: var(--mist);
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: rgba(234, 242, 239, 0.35);
 }
 
 input:focus-visible,
 textarea:focus-visible,
+select:focus-visible,
 button:focus-visible,
 a:focus-visible {
-  outline: 2px solid var(--brass);
+  outline: 2px solid var(--gold);
   outline-offset: 2px;
 }
 
 button {
-  font-family: inherit;
+  font-family: "Manrope", inherit;
   font-size: 15px;
-  font-weight: 600;
-  padding: 10px 20px;
-  border-radius: var(--radius);
-  border: 1px solid var(--ink);
-  background: var(--ink);
-  color: var(--parchment);
+  font-weight: 700;
+  padding: 11px 22px;
+  border-radius: 999px;
+  border: none;
+  background: linear-gradient(120deg, var(--emerald), var(--violet));
+  color: #0a0f1e;
   cursor: pointer;
+  transition: transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.15s ease, opacity 0.15s ease, filter 0.2s ease;
+}
+
+button:hover:not(:disabled) {
+  transform: translateY(-1px) scale(1.03);
+  filter: brightness(1.08);
+  box-shadow: 0 8px 22px rgba(45, 212, 167, 0.28);
+}
+
+button:active:not(:disabled) {
+  transform: scale(0.97);
+  box-shadow: none;
 }
 
 button.secondary {
   background: transparent;
-  color: var(--ink);
+  color: var(--mist);
+  border: 1px solid var(--glass-border);
 }
 
 button.danger {
-  background: var(--maroon);
-  border-color: var(--maroon);
+  background: linear-gradient(120deg, var(--wrong), #ff5a75);
+  color: #1a0a0a;
 }
 
 button:disabled {
-  opacity: 0.5;
+  opacity: 0.4;
   cursor: not-allowed;
 }
 
 .error-banner {
-  background: #f6e2dd;
+  background: rgba(255, 138, 128, 0.12);
   border: 1px solid var(--wrong);
-  color: var(--wrong);
+  color: #ffb3ac;
   padding: 10px 14px;
-  border-radius: var(--radius);
+  border-radius: var(--radius-sm);
+  margin-bottom: 18px;
+  font-size: 14px;
+}
+
+.success-banner {
+  background: rgba(45, 212, 167, 0.12);
+  border: 1px solid var(--emerald);
+  color: var(--emerald-soft);
+  padding: 10px 14px;
+  border-radius: var(--radius-sm);
   margin-bottom: 18px;
   font-size: 14px;
 }
 
 .pill {
   display: inline-block;
-  padding: 3px 10px;
+  padding: 3px 12px;
   border-radius: 999px;
   font-size: 12px;
-  font-weight: 600;
+  font-weight: 700;
 }
 
 .pill.status-new {
-  background: #e9e5d6;
-  color: var(--ink-soft);
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--mist-soft);
 }
 
 .pill.status-learning {
-  background: #f1e0b0;
-  color: #6b5316;
+  background: rgba(251, 191, 102, 0.18);
+  color: var(--gold-soft);
 }
 
 .pill.status-memorized {
-  background: #d7ead9;
-  color: var(--correct);
+  background: rgba(45, 212, 167, 0.18);
+  color: var(--emerald-soft);
 }
 
 /* --------------------------- Miftah Method ------------------------------- */
@@ -301,17 +487,19 @@ button:disabled {
   justify-content: space-between;
   gap: 16px;
   padding: 14px 20px;
-  border-radius: var(--radius);
+  border-radius: var(--radius-sm);
   margin-bottom: 20px;
-  background: #f1e0b0;
-  color: #6b5316;
-  font-weight: 600;
+  background: rgba(251, 191, 102, 0.14);
+  border: 1px solid rgba(251, 191, 102, 0.3);
+  color: var(--gold-soft);
+  font-weight: 700;
 }
 
 .phase-banner.phase-recall,
 .phase-banner.phase-cumulative {
-  background: #e4dcf1;
-  color: #4a3a6b;
+  background: rgba(167, 139, 250, 0.14);
+  border-color: rgba(167, 139, 250, 0.3);
+  color: var(--violet-soft);
 }
 
 .repeat-dots {
@@ -324,18 +512,19 @@ button:disabled {
   width: 14px;
   height: 14px;
   border-radius: 50%;
-  border: 2px solid var(--brass);
+  border: 2px solid var(--gold);
   background: transparent;
+  transition: background 0.2s ease;
 }
 
 .repeat-dot.filled {
-  background: var(--brass);
+  background: var(--gold);
 }
 
 .hidden-ayah-placeholder {
   text-align: center;
   padding: 40px 0;
-  color: var(--ink-soft);
+  color: var(--mist-soft);
   font-style: italic;
 }
 
@@ -351,24 +540,31 @@ button:disabled {
   display: flex;
   gap: 4px;
   margin-bottom: 24px;
-  border-bottom: 1px solid var(--parchment-deep);
+  border-bottom: 1px solid var(--glass-border);
 }
 
 .tab-button {
   background: transparent;
   border: none;
-  border-bottom: 2px solid transparent;
   border-radius: 0;
+  border-bottom: 2px solid transparent;
   padding: 10px 4px;
   margin-right: 24px;
-  font-weight: 600;
-  color: var(--ink-soft);
+  font-weight: 700;
+  color: var(--mist-soft);
   cursor: pointer;
+  box-shadow: none;
+}
+
+.tab-button:hover:not(:disabled) {
+  transform: none;
+  filter: none;
+  box-shadow: none;
 }
 
 .tab-button.active {
-  color: var(--ink);
-  border-bottom-color: var(--brass);
+  color: var(--mist);
+  border-bottom-color: var(--gold);
 }
 
 .search-row {
@@ -387,7 +583,7 @@ button:disabled {
 .progress-bar-track {
   width: 100%;
   height: 8px;
-  background: var(--parchment-deep);
+  background: rgba(255, 255, 255, 0.08);
   border-radius: 999px;
   overflow: hidden;
   margin: 8px 0 4px;
@@ -395,7 +591,7 @@ button:disabled {
 
 .progress-bar-fill {
   height: 100%;
-  background: var(--brass);
+  background: linear-gradient(90deg, var(--emerald), var(--gold));
   border-radius: 999px;
 }
 
@@ -406,7 +602,7 @@ button:disabled {
   align-items: center;
   justify-content: space-between;
   padding: 8px 0;
-  border-top: 1px solid var(--parchment-deep);
+  border-top: 1px solid var(--glass-border);
 }
 
 .member-row:first-child {
@@ -422,14 +618,4 @@ button:disabled {
 .inline-form input {
   margin-bottom: 0;
   flex: 1;
-}
-
-.success-banner {
-  background: #d7ead9;
-  border: 1px solid var(--correct);
-  color: var(--correct);
-  padding: 10px 14px;
-  border-radius: var(--radius);
-  margin-bottom: 18px;
-  font-size: 14px;
 }

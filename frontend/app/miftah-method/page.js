@@ -86,24 +86,12 @@ export default function MiftahMethodPage() {
         <h3 style={{ marginTop: activeSessions.length ? 32 : 0 }}>Start a new session</h3>
         <form onSubmit={handleStart} className="card">
           <label htmlFor="surah">Surah</label>
-          <select
-            id="surah"
-            value={surahId}
-            onChange={(e) => setSurahId(e.target.value)}
-            required
-            style={{
-              width: "100%",
-              padding: "10px 12px",
-              border: "1px solid var(--parchment-deep)",
-              borderRadius: "var(--radius)",
-              marginBottom: 18,
-              fontSize: 15,
-              fontFamily: "inherit",
-              background: "#fff",
-              color: "var(--ink)",
-            }}
-          >
-            <option value="" disabled>Choose a surah…</option>
+        <select
+          id="surah"
+          value={surahId}
+          onChange={(e) => setSurahId(e.target.value)}
+          required
+        >            <option value="" disabled>Choose a surah…</option>
             {surahs.map((s) => (
               <option key={s.id} value={s.id}>
                 {s.id}. {s.name_transliteration} ({s.ayah_count} ayahs)
@@ -132,7 +120,7 @@ export default function MiftahMethodPage() {
             onChange={(e) => setEndAyah(e.target.value)}
             required
           />
-          <p className="muted" style={{ marginTop: -10, marginBottom: 18 }}>
+          <p className="muted" style={{ marginTop: 4, marginBottom: 18 }}>
             Start with a small range — 3 to 5 ayahs works well while you get used to the method.
           </p>
 

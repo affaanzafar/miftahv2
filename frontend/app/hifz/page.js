@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import AnimatedNumber from "../../components/AnimatedNumber";
 import Nav from "../../components/Nav";
 import { api } from "../../lib/api";
 
@@ -83,15 +84,15 @@ export default function HifzPage() {
         <div className="card-row" style={{ marginBottom: 24, gap: 16 }}>
           <div className="card" style={{ flex: 1, textAlign: "center" }}>
             <p className="muted">Due today</p>
-            <p style={{ fontSize: 32, margin: 0 }}>{dueAyahCount}</p>
+            <p style={{ fontSize: 32, margin: 0 }}><AnimatedNumber value={dueAyahCount} /></p>
           </div>
           <div className="card" style={{ flex: 1, textAlign: "center" }}>
             <p className="muted">Learning</p>
-            <p style={{ fontSize: 32, margin: 0 }}>{learningCount}</p>
+            <p style={{ fontSize: 32, margin: 0 }}><AnimatedNumber value={learningCount} /></p>
           </div>
           <div className="card" style={{ flex: 1, textAlign: "center" }}>
             <p className="muted">Memorized</p>
-            <p style={{ fontSize: 32, margin: 0 }}>{memorizedCount}</p>
+            <p style={{ fontSize: 32, margin: 0 }}><AnimatedNumber value={memorizedCount} /></p>
           </div>
         </div>
 
