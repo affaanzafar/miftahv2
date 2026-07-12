@@ -1,11 +1,25 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import Nav from "../../../components/Nav";
 import { api } from "../../../lib/api";
 import { useSpeechRecognition } from "../../../lib/useSpeechRecognition";
 
+/**
+ * Continuous "whole mushaf" recitation.
+ *
+ * The whole surah (or review range) renders as one scrollable page, like a
+ * real mushaf. Recitation is checked ayah-by-ayah under the hood using the
+ * same submitAttempt endpoint as before — nothing changed on the backend —
+ * but the UI no longer gates you behind a per-ayah submit/next click.
+ *
+ * While listening is active, every finalized chunk of speech is compared
+ * against the ayah currently "in focus". Once enough of that ayah's words
+ * have been matched, it's scored and focus auto-advances to the next ayah,
+ * without interrupting your recitation. You can pause/resume or stop early
+ * at any time; whatever was scored so far is kept.
+ */
 export default function RecitePage() {
   const { surahId } = useParams();
   const router = useRouter();
@@ -18,13 +32,22 @@ export default function RecitePage() {
   const [surah, setSurah] = useState(null);
   const [error, setError] = useState("");
   const [sessionId, setSessionId] = useState(null);
-  const [ayahIndex, setAyahIndex] = useState(0); // index into ayahsInRange
-  const [wordResults, setWordResults] = useState(null); // results for the current ayah
-  const [ayahScores, setAyahScores] = useState([]); // accuracy per completed ayah
+  const [focusIndex, setFocusIndex] = useState(0); // index into ayahsInRange currently being checked
+  const [ayahResults, setAyahResults] = useState({}); // ayah.id -> { results, ayah_accuracy }
   const [sessionSummary, setSessionSummary] = useState(null);
   const [appliedToHifz, setAppliedToHifz] = useState(false);
+  const [checking, setChecking] = useState(false);
 
   const { transcript, isListening, isSupported, start, stop, reset } = useSpeechRecognition();
+
+  const bufferRef = useRef(""); // words accumulated since the last successful ayah check
+  const lastProcessedTranscriptRef = useRef("");
+  const focusIndexRef = useRef(0);
+  const ayahRefs = useRef({});
+
+  useEffect(() => {
+    focusIndexRef.current = focusIndex;
+  }, [focusIndex]);
 
   useEffect(() => {
     if (!surahId) return;
@@ -40,8 +63,17 @@ export default function RecitePage() {
       )
     : [];
 
+  // Keep the current ayah scrolled into view as focus advances.
+  useEffect(() => {
+    const ayah = ayahsInRange[focusIndex];
+    if (ayah && ayahRefs.current[ayah.id]) {
+      ayahRefs.current[ayah.id].scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusIndex]);
+
   async function handleStart() {
-    if (!surah) return;
+    if (!surah || ayahsInRange.length === 0) return;
     try {
       const { session_id } = await api.startSession(
         surah.id,
@@ -50,38 +82,70 @@ export default function RecitePage() {
         isReview
       );
       setSessionId(session_id);
+      setFocusIndex(0);
+      bufferRef.current = "";
+      lastProcessedTranscriptRef.current = "";
+      start();
     } catch (e) {
       setError(e.message);
     }
   }
 
-  async function handleSubmitAyah() {
-    const ayah = ayahsInRange[ayahIndex];
+  // Every time the live transcript grows, pull off whatever's new and add
+  // it to the rolling buffer for the ayah currently in focus.
+  useEffect(() => {
+    if (!isListening && !transcript) return;
+    const newPortion = transcript.slice(lastProcessedTranscriptRef.current.length).trim();
+    if (newPortion) {
+      bufferRef.current = (bufferRef.current + " " + newPortion).trim();
+    }
+    lastProcessedTranscriptRef.current = transcript;
+    maybeCheckFocusAyah();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [transcript]);
+
+  async function maybeCheckFocusAyah() {
+    const idx = focusIndexRef.current;
+    const ayah = ayahsInRange[idx];
+    if (!ayah || checking) return;
+
+    const bufferWordCount = bufferRef.current.split(/\s+/).filter(Boolean).length;
+    const expectedWordCount = ayah.words.length;
+
+    // Wait until roughly enough words have been said for this ayah before
+    // scoring it — short ayahs need fewer words to trigger a check.
+    if (bufferWordCount < Math.max(2, Math.ceil(expectedWordCount * 0.6))) return;
+
+    setChecking(true);
     try {
-      const res = await api.submitAttempt(sessionId, ayah.id, transcript);
-      setWordResults(res);
-      setAyahScores((prev) => [...prev, res.ayah_accuracy]);
+      const res = await api.submitAttempt(sessionId, ayah.id, bufferRef.current);
+      setAyahResults((prev) => ({ ...prev, [ayah.id]: res }));
+
+      // Carry over any extra words beyond what this ayah needed — the
+      // reciter may already be partway into the next ayah.
+      const consumedWords = bufferRef.current.split(/\s+/).filter(Boolean).slice(0, expectedWordCount);
+      const leftoverWords = bufferRef.current.split(/\s+/).filter(Boolean).slice(expectedWordCount);
+      bufferRef.current = leftoverWords.join(" ");
+
+      if (idx + 1 < ayahsInRange.length) {
+        setFocusIndex(idx + 1);
+      } else {
+        await finishUp();
+      }
     } catch (e) {
-      setError(e.message);
+      // If a single check fails, don't kill the whole session — just keep
+      // listening and try again once more speech comes in.
+    } finally {
+      setChecking(false);
     }
   }
 
-  function handleNextAyah() {
-    reset();
-    setWordResults(null);
-    if (ayahIndex + 1 < ayahsInRange.length) {
-      setAyahIndex(ayahIndex + 1);
-    } else {
-      handleComplete();
-    }
-  }
-
-  async function handleComplete() {
+  async function finishUp() {
+    stop();
     try {
       const result = await api.completeSession(sessionId);
       setSessionSummary(result);
       if (isReview) {
-        // a review session applies straight to the hifz schedule — no extra click needed
         await api.applyReview(sessionId);
         setAppliedToHifz(true);
       }
@@ -97,6 +161,23 @@ export default function RecitePage() {
     } catch (e) {
       setError(e.message);
     }
+  }
+
+  function handleTogglePause() {
+    if (isListening) {
+      stop();
+    } else {
+      reset();
+      lastProcessedTranscriptRef.current = "";
+      start();
+    }
+  }
+
+  function jumpToAyah(idx) {
+    bufferRef.current = "";
+    lastProcessedTranscriptRef.current = "";
+    reset();
+    setFocusIndex(idx);
   }
 
   if (error) {
@@ -122,6 +203,11 @@ export default function RecitePage() {
   }
 
   if (sessionSummary) {
+    const scored = Object.values(ayahResults);
+    const avgAccuracy = scored.length
+      ? Math.round(scored.reduce((sum, r) => sum + r.ayah_accuracy, 0) / scored.length)
+      : sessionSummary.accuracy_score;
+
     return (
       <>
         <Nav />
@@ -131,7 +217,7 @@ export default function RecitePage() {
             <h3>{surah.name_transliteration}</h3>
             <p className="muted">Overall accuracy</p>
             <p style={{ fontSize: 40, fontFamily: "Amiri, serif", margin: 0 }}>
-              {sessionSummary.accuracy_score}%
+              {sessionSummary.accuracy_score ?? avgAccuracy}%
             </p>
           </div>
           {appliedToHifz ? (
@@ -147,88 +233,116 @@ export default function RecitePage() {
     );
   }
 
-  if (!sessionId) {
-    return (
-      <>
-        <Nav />
-        <main className="page">
-          <h1 className="page-title">
-            {surah.name_transliteration} <span className="ayah-arabic" style={{ fontSize: 26 }}>{surah.name_arabic}</span>
-          </h1>
-          <p className="page-subtitle">
-            {isReview
-              ? `Review — ayahs ${ayahsInRange[0]?.ayah_number}–${ayahsInRange[ayahsInRange.length - 1]?.ayah_number}`
-              : `${surah.ayah_count} ayahs · ${surah.name_translation}`}
-          </p>
-          {!isSupported && (
-            <div className="error-banner">
-              Your browser doesn't support live speech recognition (Chrome or Edge work best).
-              You can still browse the text.
-            </div>
-          )}
-          <button onClick={handleStart} disabled={!isSupported || ayahsInRange.length === 0}>
-            {isReview ? "Start review" : "Start recitation session"}
-          </button>
-        </main>
-      </>
-    );
-  }
-
-  const ayah = ayahsInRange[ayahIndex];
-
   return (
     <>
       <Nav />
-      <main className="page">
-        <h1 className="page-title">{surah.name_transliteration}</h1>
+      <main className="page" style={{ paddingBottom: 160 }}>
+        <h1 className="page-title">
+          {surah.name_transliteration}{" "}
+          <span className="ayah-arabic" style={{ fontSize: 26 }}>
+            {surah.name_arabic}
+          </span>
+        </h1>
         <p className="page-subtitle">
-          Ayah {ayah.ayah_number} · {ayahIndex + 1} of {ayahsInRange.length}
+          {isReview
+            ? `Review — ayahs ${ayahsInRange[0]?.ayah_number}–${ayahsInRange[ayahsInRange.length - 1]?.ayah_number}`
+            : `${surah.ayah_count} ayahs · ${surah.name_translation}`}
         </p>
 
-        <div className="illuminated-card">
-          <p className="ayah-arabic">
-            {wordResults
-              ? wordResults.results
-                  .filter((r) => r.status !== "added")
-                  .map((r, i) => (
-                    <span key={i} className={`ayah-word ${r.status}`}>
-                      {r.expected}{" "}
+        {!isSupported && (
+          <div className="error-banner">
+            Your browser doesn't support live speech recognition (Chrome or Edge work best). You can
+            still read the surah below.
+          </div>
+        )}
+
+        {!sessionId && (
+          <button onClick={handleStart} disabled={!isSupported || ayahsInRange.length === 0}>
+            {isReview ? "Start review" : "Start reciting"}
+          </button>
+        )}
+
+        <div style={{ marginTop: 28 }}>
+          {ayahsInRange.map((ayah, idx) => {
+            const result = ayahResults[ayah.id];
+            const isFocus = sessionId && idx === focusIndex && !result;
+            const isDone = !!result;
+
+            return (
+              <div
+                key={ayah.id}
+                ref={(el) => (ayahRefs.current[ayah.id] = el)}
+                className="illuminated-card"
+                style={{
+                  marginBottom: 20,
+                  cursor: sessionId ? "pointer" : "default",
+                  outline: isFocus ? "2px solid var(--gold)" : "none",
+                  outlineOffset: 2,
+                }}
+                onClick={() => sessionId && !isDone && jumpToAyah(idx)}
+              >
+                <p className="muted" style={{ margin: "0 0 8px" }}>
+                  Ayah {ayah.ayah_number}
+                  {isDone && (
+                    <span style={{ marginLeft: 10 }}>
+                      · <strong>{result.ayah_accuracy}%</strong>
                     </span>
-                  ))
-              : ayah.words.map((w) => <span key={w.position} className="ayah-word">{w.text_uthmani} </span>)}
-          </p>
+                  )}
+                  {isFocus && (
+                    <span style={{ marginLeft: 10, color: "var(--gold-soft)" }}>
+                      {isListening ? "● listening…" : "paused"}
+                    </span>
+                  )}
+                </p>
+                <p className="ayah-arabic">
+                  {isDone
+                    ? result.results
+                        .filter((r) => r.status !== "added")
+                        .map((r, i) => (
+                          <span key={i} className={`ayah-word ${r.status}`}>
+                            {r.expected}{" "}
+                          </span>
+                        ))
+                    : ayah.words.map((w) => (
+                        <span key={w.position} className="ayah-word">
+                          {w.text_uthmani}{" "}
+                        </span>
+                      ))}
+                </p>
+              </div>
+            );
+          })}
         </div>
 
-        {!wordResults ? (
-          <div className="card">
-            <p className="muted">
-              {isListening ? "Listening… recite the ayah above, then press stop." : "Press start, then recite the ayah aloud."}
-            </p>
-            <p style={{ minHeight: 24 }}>{transcript}</p>
-            {!isListening ? (
-              <button onClick={start}>🎙️ Start speaking</button>
-            ) : (
-              <button className="danger" onClick={stop}>
-                ⏹ Stop
+        {sessionId && !sessionSummary && (
+          <div
+            className="card"
+            style={{
+              position: "fixed",
+              left: "50%",
+              transform: "translateX(-50%)",
+              bottom: 20,
+              width: "min(760px, calc(100% - 40px))",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 16,
+              zIndex: 40,
+            }}
+          >
+            <div>
+              <p className="muted" style={{ margin: 0 }}>
+                Ayah {focusIndex + 1} of {ayahsInRange.length}
+                {checking && " · checking…"}
+              </p>
+              <p style={{ margin: "2px 0 0", fontSize: 14, minHeight: 20 }}>{transcript}</p>
+            </div>
+            <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
+              <button onClick={handleTogglePause}>{isListening ? "⏸ Pause" : "🎙️ Resume"}</button>
+              <button className="secondary" onClick={finishUp}>
+                Finish now
               </button>
-            )}{" "}
-            <button className="secondary" onClick={handleSubmitAyah} disabled={!transcript}>
-              Check my recitation
-            </button>
-          </div>
-        ) : (
-          <div className="card">
-            <p>
-              Accuracy for this ayah: <strong>{wordResults.ayah_accuracy}%</strong>
-            </p>
-            <p className="muted">
-              <span style={{ color: "var(--correct)" }}>green</span> = correct ·{" "}
-              <span style={{ color: "var(--wrong)" }}>red</span> = wrong word ·{" "}
-              <span style={{ color: "var(--missed)" }}>faded</span> = missed word
-            </p>
-            <button onClick={handleNextAyah}>
-              {ayahIndex + 1 < ayahsInRange.length ? "Next ayah" : "Finish session"}
-            </button>
+            </div>
           </div>
         )}
       </main>
