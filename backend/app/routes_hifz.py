@@ -4,8 +4,8 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.models import MemorizationProgress, RecitationSession, Goal, User
-from app.schemas import ProgressOut, GoalCreate, GoalOut
+from app.models import MemorizationProgress, RecitationSession, Goal, User, Ayah, Surah
+from app.schemas import ProgressOut, DueGroupOut, GoalCreate, GoalOut
 from app.routes_auth import get_current_user
 from app.spaced_repetition import sm2_update, accuracy_to_quality
 
@@ -17,7 +17,7 @@ def get_due_reviews(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Ayahs whose SM-2 due_at has passed — what the daily review session should cover."""
+    """Ayahs whose SM-2 due_at has passed -- what the daily review session should cover."""
     now = datetime.utcnow()
     rows = (
         db.query(MemorizationProgress)
@@ -27,7 +27,65 @@ def get_due_reviews(
         )
         .all()
     )
-    return [_to_progress_out(r) for r in rows]
+    return [_to_progress_out(r, db) for r in rows]
+
+
+@router.get("/due/grouped", response_model=list[DueGroupOut])
+def get_due_reviews_grouped(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Due ayahs bundled into contiguous per-surah ranges, so the UI can offer
+    one 'Review now' button per range instead of one per ayah -- pressing it
+    starts a single recitation session covering that whole range.
+    """
+    now = datetime.utcnow()
+    rows = (
+        db.query(MemorizationProgress)
+        .filter(MemorizationProgress.user_id == current_user.id, MemorizationProgress.due_at <= now)
+        .all()
+    )
+    ayah_ids = [r.ayah_id for r in rows]
+    if not ayah_ids:
+        return []
+
+    ayahs = db.query(Ayah).filter(Ayah.id.in_(ayah_ids)).all()
+    ayah_by_id = {a.id: a for a in ayahs}
+    surah_names = {
+        s.id: s.name_transliteration
+        for s in db.query(Surah).filter(Surah.id.in_({a.surah_id for a in ayahs})).all()
+    }
+
+    by_surah: dict[int, list[int]] = {}
+    for r in rows:
+        ayah = ayah_by_id.get(r.ayah_id)
+        if not ayah:
+            continue
+        by_surah.setdefault(ayah.surah_id, []).append(ayah.ayah_number)
+
+    groups: list[DueGroupOut] = []
+    for surah_id, numbers in by_surah.items():
+        numbers.sort()
+        range_start = numbers[0]
+        prev = numbers[0]
+        for n in numbers[1:] + [None]:
+            if n is not None and n == prev + 1:
+                prev = n
+                continue
+            groups.append(
+                DueGroupOut(
+                    surah_id=surah_id,
+                    surah_name=surah_names.get(surah_id, f"Surah {surah_id}"),
+                    start_ayah_number=range_start,
+                    end_ayah_number=prev,
+                    ayah_count=prev - range_start + 1,
+                )
+            )
+            if n is not None:
+                range_start = n
+                prev = n
+    return groups
 
 
 @router.get("/progress", response_model=list[ProgressOut])
@@ -36,7 +94,7 @@ def get_all_progress(
     current_user: User = Depends(get_current_user),
 ):
     rows = db.query(MemorizationProgress).filter(MemorizationProgress.user_id == current_user.id).all()
-    return [_to_progress_out(r) for r in rows]
+    return [_to_progress_out(r, db) for r in rows]
 
 
 @router.post("/ayahs/{ayah_id}/mark-learning", response_model=ProgressOut)
@@ -58,7 +116,7 @@ def mark_learning(
     row.due_at = datetime.utcnow()
     db.commit()
     db.refresh(row)
-    return _to_progress_out(row)
+    return _to_progress_out(row, db)
 
 
 @router.post("/sessions/{session_id}/apply-review", response_model=list[ProgressOut])
@@ -69,8 +127,8 @@ def apply_review(
 ):
     """
     Feeds a completed recitation session's per-ayah accuracy into the SM-2
-    scheduler. This is the wiring described in the roadmap: a 'review' is a
-    scored recitation session, not a separate manual checkbox.
+    scheduler. A 'review' is a scored recitation session, not a separate
+    manual checkbox.
     """
     session = db.query(RecitationSession).filter(RecitationSession.id == session_id).first()
     if not session or session.user_id != current_user.id:
@@ -82,8 +140,6 @@ def apply_review(
     updated = []
 
     for ayah_num in range(session.start_ayah_number, session.end_ayah_number + 1):
-        from app.models import Ayah
-
         ayah = (
             db.query(Ayah)
             .filter(Ayah.surah_id == session.surah_id, Ayah.ayah_number == ayah_num)
@@ -114,7 +170,7 @@ def apply_review(
         updated.append(row)
 
     db.commit()
-    return [_to_progress_out(r) for r in updated]
+    return [_to_progress_out(r, db) for r in updated]
 
 
 @router.post("/goals", response_model=GoalOut, status_code=201)
@@ -133,7 +189,7 @@ def create_goal(
     db.add(goal)
     db.commit()
     db.refresh(goal)
-    return _to_goal_out(goal)
+    return _to_goal_out(goal, db, current_user)
 
 
 @router.get("/goals", response_model=list[GoalOut])
@@ -142,24 +198,61 @@ def list_goals(
     current_user: User = Depends(get_current_user),
 ):
     goals = db.query(Goal).filter(Goal.user_id == current_user.id).all()
-    return [_to_goal_out(g) for g in goals]
+    return [_to_goal_out(g, db, current_user) for g in goals]
 
 
-def _to_progress_out(row: MemorizationProgress) -> ProgressOut:
+@router.delete("/goals/{goal_id}", status_code=204)
+def delete_goal(
+    goal_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    goal = db.query(Goal).filter(Goal.id == goal_id, Goal.user_id == current_user.id).first()
+    if not goal:
+        raise HTTPException(status_code=404, detail="Goal not found")
+    db.delete(goal)
+    db.commit()
+
+
+def _to_progress_out(row: MemorizationProgress, db: Session) -> ProgressOut:
+    ayah = db.query(Ayah).filter(Ayah.id == row.ayah_id).first()
+    surah = db.query(Surah).filter(Surah.id == ayah.surah_id).first() if ayah else None
     return ProgressOut(
         ayah_id=row.ayah_id,
         status=row.status,
         repetitions=row.repetitions,
         interval_days=row.interval_days,
         due_at=row.due_at.isoformat() if row.due_at else None,
+        surah_id=ayah.surah_id if ayah else None,
+        surah_name=surah.name_transliteration if surah else None,
+        ayah_number=ayah.ayah_number if ayah else None,
+        text_uthmani=ayah.text_uthmani if ayah else None,
     )
 
 
-def _to_goal_out(goal: Goal) -> GoalOut:
+def _to_goal_out(goal: Goal, db: Session, current_user: User) -> GoalOut:
+    progress_percent = 0
+    if goal.target_surah_id:
+        total = db.query(Ayah).filter(Ayah.surah_id == goal.target_surah_id).count()
+        if total:
+            target_ayah_ids = {
+                a.id for a in db.query(Ayah).filter(Ayah.surah_id == goal.target_surah_id).all()
+            }
+            memorized = (
+                db.query(MemorizationProgress)
+                .filter(
+                    MemorizationProgress.user_id == current_user.id,
+                    MemorizationProgress.status == "memorized",
+                    MemorizationProgress.ayah_id.in_(target_ayah_ids),
+                )
+                .count()
+            )
+            progress_percent = round(100 * memorized / total)
     return GoalOut(
         id=goal.id,
         title=goal.title,
         target_surah_id=goal.target_surah_id,
         target_juz=goal.target_juz,
         target_date=goal.target_date.isoformat() if goal.target_date else None,
+        progress_percent=progress_percent,
     )

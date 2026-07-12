@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models import StudyCircle, CircleMembership, Report, User, MemorizationProgress
-from app.schemas import CircleCreate, CircleOut, ReportCreate
+from app.schemas import CircleCreate, CircleOut, ReportCreate, CircleInvite, CircleMemberOut
 from app.routes_auth import get_current_user
 
 router = APIRouter(prefix="/community", tags=["community"])
@@ -41,6 +41,24 @@ def list_my_circles(
     return [_to_circle_out(c, db) for c in circles if c]
 
 
+@router.get("/circles/discover", response_model=list[CircleOut])
+def discover_circles(
+    q: str | None = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Public circles the current user hasn't joined yet, optionally filtered by name."""
+    joined_ids = {
+        m.circle_id
+        for m in db.query(CircleMembership).filter(CircleMembership.user_id == current_user.id).all()
+    }
+    query = db.query(StudyCircle).filter(StudyCircle.is_private == False)  # noqa: E712
+    if q:
+        query = query.filter(StudyCircle.name.ilike(f"%{q}%"))
+    circles = [c for c in query.order_by(StudyCircle.created_at.desc()).all() if c.id not in joined_ids]
+    return [_to_circle_out(c, db) for c in circles]
+
+
 @router.post("/circles/{circle_id}/join", status_code=201)
 def join_circle(
     circle_id: str,
@@ -64,7 +82,48 @@ def join_circle(
     return {"status": "joined"}
 
 
-@router.get("/circles/{circle_id}/progress")
+@router.post("/circles/{circle_id}/invite", response_model=CircleMemberOut, status_code=201)
+def invite_member(
+    circle_id: str,
+    payload: CircleInvite,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Add someone to the circle by email. Any current member can invite —
+    a study circle is meant to grow through its members, not gatekept by one owner."""
+    acting_membership = (
+        db.query(CircleMembership)
+        .filter(CircleMembership.circle_id == circle_id, CircleMembership.user_id == current_user.id)
+        .first()
+    )
+    if not acting_membership:
+        raise HTTPException(status_code=403, detail="Only members of this circle can invite others")
+
+    target_user = db.query(User).filter(User.email == payload.email).first()
+    if not target_user:
+        raise HTTPException(status_code=404, detail="No Miftah account found with that email")
+
+    existing = (
+        db.query(CircleMembership)
+        .filter(CircleMembership.circle_id == circle_id, CircleMembership.user_id == target_user.id)
+        .first()
+    )
+    if existing:
+        raise HTTPException(status_code=400, detail="They're already a member of this circle")
+
+    membership = CircleMembership(circle_id=circle_id, user_id=target_user.id, role="member")
+    db.add(membership)
+    db.commit()
+
+    return CircleMemberOut(
+        user_id=target_user.id,
+        display_name=target_user.display_name,
+        role=membership.role,
+        memorized_ayah_count=0,
+    )
+
+
+@router.get("/circles/{circle_id}/progress", response_model=list[CircleMemberOut])
 def circle_progress(
     circle_id: str,
     db: Session = Depends(get_db),
@@ -84,12 +143,12 @@ def circle_progress(
             .count()
         )
         feed.append(
-            {
-                "user_id": m.user_id,
-                "display_name": user.display_name if user else None,
-                "memorized_ayah_count": memorized_count,
-                "role": m.role,
-            }
+            CircleMemberOut(
+                user_id=m.user_id,
+                display_name=user.display_name if user else None,
+                memorized_ayah_count=memorized_count,
+                role=m.role,
+            )
         )
     return feed
 

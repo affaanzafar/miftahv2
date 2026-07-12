@@ -58,16 +58,34 @@ export const api = {
     request(`/recitation/sessions/${sessionId}/complete`, { method: "POST" }),
 
   getDueReviews: () => request("/hifz/due"),
+  getDueReviewsGrouped: () => request("/hifz/due/grouped"),
   getProgress: () => request("/hifz/progress"),
   markLearning: (ayahId) => request(`/hifz/ayahs/${ayahId}/mark-learning`, { method: "POST" }),
   applyReview: (sessionId) => request(`/hifz/sessions/${sessionId}/apply-review`, { method: "POST" }),
   createGoal: (payload) => request("/hifz/goals", { method: "POST", body: payload }),
   listGoals: () => request("/hifz/goals"),
+  deleteGoal: (goalId) => request(`/hifz/goals/${goalId}`, { method: "DELETE" }),
 
   listCircles: () => request("/community/circles"),
+  discoverCircles: (q = "") => request(`/community/circles/discover${q ? `?q=${encodeURIComponent(q)}` : ""}`),
   createCircle: (payload) => request("/community/circles", { method: "POST", body: payload }),
   joinCircle: (circleId) => request(`/community/circles/${circleId}/join`, { method: "POST" }),
   circleProgress: (circleId) => request(`/community/circles/${circleId}/progress`),
+  inviteToCircle: (circleId, email) =>
+    request(`/community/circles/${circleId}/invite`, { method: "POST", body: { email } }),
   reportMember: (circleId, payload) =>
     request(`/community/circles/${circleId}/report`, { method: "POST", body: payload }),
+
+  startMiftahMethod: (surah_id, start_ayah_number, end_ayah_number) =>
+    request("/miftah-method/sessions", {
+      method: "POST",
+      body: { surah_id, start_ayah_number, end_ayah_number },
+    }),
+  getMiftahMethodSession: (sessionId) => request(`/miftah-method/sessions/${sessionId}`),
+  listMiftahMethodSessions: () => request("/miftah-method/sessions"),
+  submitMiftahMethodAttempt: (sessionId, recognized_text) =>
+    request(`/miftah-method/sessions/${sessionId}/attempt`, {
+      method: "POST",
+      body: { recognized_text },
+    }),
 };

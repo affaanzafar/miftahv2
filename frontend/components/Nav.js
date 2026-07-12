@@ -21,6 +21,7 @@ export default function Nav() {
       <div className="nav-links">
         <Link href="/">Surahs</Link>
         <Link href="/hifz">Hifz</Link>
+        <Link href="/miftah-method">Miftah Method</Link>
         <Link href="/circles">Circles</Link>
         {loggedIn ? (
           <button className="secondary" onClick={logout}>

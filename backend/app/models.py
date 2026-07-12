@@ -187,6 +187,48 @@ class Goal(Base):
 
 
 # ---------------------------------------------------------------------------
+# Miftah Method: guided incremental + cumulative memorization
+# ---------------------------------------------------------------------------
+
+class MiftahMethodSession(Base):
+    """
+    State machine for the 'Miftah Method'.
+
+    For a chosen range of ayahs, each new ayah goes through three phases:
+      1. "repeat"     — text visible, recite aloud 4 times (each checked
+                         against the correction engine so it can't be skipped).
+      2. "recall"     — text hidden, recite that ayah alone from memory,
+                         looping until the accuracy is high enough to call it
+                         fluent.
+      3. "cumulative" — text hidden, recite every ayah mastered so far in
+                         this session (start_ayah_number..current_ayah_number)
+                         back to back from memory, looping until fluent.
+
+    Once cumulative passes, current_ayah_number advances and the cycle
+    repeats for the next ayah — so ayah N is always tested together with
+    every ayah before it, not in isolation.
+    """
+
+    __tablename__ = "miftah_method_sessions"
+
+    id = Column(UUID(as_uuid=False), primary_key=True, default=gen_uuid)
+    user_id = Column(UUID(as_uuid=False), ForeignKey("users.id"), nullable=False)
+    surah_id = Column(Integer, ForeignKey("surahs.id"), nullable=False)
+    start_ayah_number = Column(Integer, nullable=False)
+    end_ayah_number = Column(Integer, nullable=False)
+
+    current_ayah_number = Column(Integer, nullable=False)
+    phase = Column(String, default="repeat")  # "repeat" | "recall" | "cumulative"
+    repeat_count = Column(Integer, default=0)  # completed read-alouds (0-4) for current ayah
+    attempt_count = Column(Integer, default=0)  # attempts in the current recall/cumulative loop
+
+    status = Column(String, default="active")  # "active" | "completed"
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    completed_at = Column(DateTime, nullable=True)
+
+
+# ---------------------------------------------------------------------------
 # Phase 3: community
 # ---------------------------------------------------------------------------
 

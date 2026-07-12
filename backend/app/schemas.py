@@ -110,9 +110,24 @@ class ProgressOut(BaseModel):
     repetitions: int
     interval_days: int
     due_at: str | None = None
+    surah_id: int | None = None
+    surah_name: str | None = None
+    ayah_number: int | None = None
+    text_uthmani: str | None = None
 
     class Config:
         from_attributes = True
+
+
+class DueGroupOut(BaseModel):
+    """Due ayahs bundled into contiguous ranges per surah, so the UI can
+    offer one 'Review now' button per range instead of one per ayah."""
+
+    surah_id: int
+    surah_name: str
+    start_ayah_number: int
+    end_ayah_number: int
+    ayah_count: int
 
 
 class GoalCreate(BaseModel):
@@ -128,9 +143,52 @@ class GoalOut(BaseModel):
     target_surah_id: int | None = None
     target_juz: int | None = None
     target_date: str | None = None
+    progress_percent: int = 0
 
     class Config:
         from_attributes = True
+
+
+# ---------------------------------------------------------------------------
+# Miftah Method
+# ---------------------------------------------------------------------------
+
+class MiftahMethodStartRequest(BaseModel):
+    surah_id: int
+    start_ayah_number: int
+    end_ayah_number: int
+
+
+class MiftahMethodAttemptRequest(BaseModel):
+    recognized_text: str  # raw transcript from the browser's speech recognizer
+
+
+class MiftahMethodSessionOut(BaseModel):
+    id: str
+    surah_id: int
+    start_ayah_number: int
+    end_ayah_number: int
+    current_ayah_number: int
+    phase: str
+    repeat_count: int
+    attempt_count: int
+    status: str
+
+    class Config:
+        from_attributes = True
+
+
+class MiftahMethodSessionDetailOut(MiftahMethodSessionOut):
+    surah: SurahOut
+    ayahs: list[AyahOut] = []
+
+
+class MiftahMethodAttemptResponse(BaseModel):
+    session: MiftahMethodSessionOut
+    results: list[WordResultOut]
+    accuracy: int
+    passed: bool
+    message: str
 
 
 # ---------------------------------------------------------------------------
@@ -157,4 +215,15 @@ class CircleOut(BaseModel):
 class ReportCreate(BaseModel):
     reported_user: str
     reason: str
+
+
+class CircleInvite(BaseModel):
+    email: EmailStr
+
+
+class CircleMemberOut(BaseModel):
+    user_id: str
+    display_name: str | None = None
+    role: str
+    memorized_ayah_count: int = 0
 
