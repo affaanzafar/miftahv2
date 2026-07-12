@@ -13,13 +13,33 @@ changing the API shape below.
 from dataclasses import dataclass
 
 
+_LETTER_FOLD = {
+    # Hamza-bearing alifs and the Quranic "alef wasla" all collapse to a
+    # bare alef — speech-to-text engines transcribe spoken Arabic without
+    # reproducing hamza placement, so comparing them literally against the
+    # Uthmani reference (which preserves hamza precisely) flags every one
+    # of these as a wrong word even when the recitation is correct.
+    "\u0623": "\u0627",  # أ -> ا
+    "\u0625": "\u0627",  # إ -> ا
+    "\u0622": "\u0627",  # آ -> ا
+    "\u0671": "\u0627",  # ٱ (alef wasla) -> ا
+    "\u0624": "\u0648",  # ؤ -> و
+    "\u0626": "\u064a",  # ئ -> ي
+    "\u0629": "\u0647",  # ة -> ه (STT frequently normalizes ta marbuta to heh)
+    "\u0649": "\u064a",  # ى (alef maqsura) -> ي
+}
+
+
 def _normalize(word: str) -> str:
-    """Strip diacritics/punctuation for comparison. Covers standard Arabic
-    tashkeel (U+064B-U+0652), the Quranic superscript alef and related marks
-    (U+0653-U+065F, U+0670), and Quranic annotation signs (U+06D6-U+06ED) —
-    the Uthmani script uses all of these and recognized speech from STT
-    typically includes none of them, so we strip them from the reference too
-    before comparing."""
+    """Strip diacritics/punctuation and fold hamza/alef letter variants for
+    comparison. Covers standard Arabic tashkeel (U+064B-U+0652), the
+    Quranic superscript alef and related marks (U+0653-U+065F, U+0670), and
+    Quranic annotation signs (U+06D6-U+06ED) — the Uthmani script uses all
+    of these and recognized speech from STT typically includes none of
+    them, so we strip them from the reference too before comparing. We
+    also fold hamza-bearing letters to their bare form for the same
+    reason: STT doesn't reproduce hamza placement, so without folding,
+    correct recitations get scored as wrong on those words."""
     diacritic_ranges = [
         (0x064B, 0x065F),
         (0x0670, 0x0670),
@@ -30,7 +50,8 @@ def _normalize(word: str) -> str:
         cp = ord(ch)
         return any(lo <= cp <= hi for lo, hi in diacritic_ranges)
 
-    cleaned = "".join(ch for ch in word if not is_diacritic(ch))
+    folded = "".join(_LETTER_FOLD.get(ch, ch) for ch in word)
+    cleaned = "".join(ch for ch in folded if not is_diacritic(ch))
     return cleaned.strip(" \u0640.,!?").lower()
 
 
