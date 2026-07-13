@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models import User
-from app.schemas import UserCreate, UserLogin, UserOut, Token
+from app.schemas import UserCreate, UserLogin, UserOut, Token, DisplayNameUpdate
 from app.auth import hash_password, verify_password, create_access_token, decode_access_token
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -51,4 +51,19 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
 
 @router.get("/me", response_model=UserOut)
 def read_current_user(current_user: User = Depends(get_current_user)):
+    return current_user
+
+
+@router.patch("/me", response_model=UserOut)
+def update_current_user(
+    payload: DisplayNameUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    name = payload.display_name.strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="Display name can't be empty")
+    current_user.display_name = name
+    db.commit()
+    db.refresh(current_user)
     return current_user

@@ -2,11 +2,82 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.models import StudyCircle, CircleMembership, Report, User, MemorizationProgress
-from app.schemas import CircleCreate, CircleOut, ReportCreate, CircleInvite, CircleMemberOut
+from app.models import StudyCircle, CircleMembership, Report, User, MemorizationProgress, CircleMessage
+from app.schemas import CircleCreate, CircleOut, ReportCreate, CircleInvite, CircleMemberOut, MessageCreate, MessageOut
 from app.routes_auth import get_current_user
 
 router = APIRouter(prefix="/community", tags=["community"])
+
+
+def _require_membership(db: Session, circle_id: str, user_id: str) -> CircleMembership:
+    membership = (
+        db.query(CircleMembership)
+        .filter(CircleMembership.circle_id == circle_id, CircleMembership.user_id == user_id)
+        .first()
+    )
+    if not membership:
+        raise HTTPException(status_code=403, detail="Not a member of this circle")
+    return membership
+
+
+@router.post("/circles/{circle_id}/messages", response_model=MessageOut, status_code=201)
+def send_message(
+    circle_id: str,
+    payload: MessageCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    _require_membership(db, circle_id, current_user.id)
+
+    body = payload.body.strip()
+    if not body:
+        raise HTTPException(status_code=400, detail="Message can't be empty")
+    if len(body) > 2000:
+        raise HTTPException(status_code=400, detail="Message is too long")
+
+    msg = CircleMessage(circle_id=circle_id, user_id=current_user.id, body=body)
+    db.add(msg)
+    db.commit()
+    db.refresh(msg)
+
+    return MessageOut(
+        id=msg.id,
+        circle_id=msg.circle_id,
+        user_id=msg.user_id,
+        display_name=current_user.display_name,
+        body=msg.body,
+        created_at=msg.created_at.isoformat(),
+    )
+
+
+@router.get("/circles/{circle_id}/messages", response_model=list[MessageOut])
+def list_messages(
+    circle_id: str,
+    after_id: int = 0,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    _require_membership(db, circle_id, current_user.id)
+
+    query = db.query(CircleMessage).filter(CircleMessage.circle_id == circle_id)
+    if after_id:
+        query = query.filter(CircleMessage.id > after_id)
+    messages = query.order_by(CircleMessage.id.asc()).limit(200).all()
+
+    out = []
+    for m in messages:
+        user = db.query(User).filter(User.id == m.user_id).first()
+        out.append(
+            MessageOut(
+                id=m.id,
+                circle_id=m.circle_id,
+                user_id=m.user_id,
+                display_name=user.display_name if user else None,
+                body=m.body,
+                created_at=m.created_at.isoformat(),
+            )
+        )
+    return out
 
 
 @router.post("/circles", response_model=CircleOut, status_code=201)

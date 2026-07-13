@@ -227,3 +227,43 @@ class CircleMemberOut(BaseModel):
     role: str
     memorized_ayah_count: int = 0
 
+
+
+# ---------------------------------------------------------------------------
+# Social: profile, follows, circle chat
+# ---------------------------------------------------------------------------
+
+class DisplayNameUpdate(BaseModel):
+    display_name: str
+
+
+class UserPublicOut(BaseModel):
+    id: str
+    display_name: str | None = None
+    is_following: bool = False
+    follower_count: int = 0
+    following_count: int = 0
+    memorized_ayah_count: int = 0
+
+
+class ProfileOut(BaseModel):
+    id: str
+    email: EmailStr
+    display_name: str | None = None
+    follower_count: int = 0
+    following_count: int = 0
+    memorized_ayah_count: int = 0
+    current_streak_days: int = 0
+
+
+class MessageCreate(BaseModel):
+    body: str
+
+
+class MessageOut(BaseModel):
+    id: int
+    circle_id: str
+    user_id: str
+    display_name: str | None = None
+    body: str
+    created_at: str

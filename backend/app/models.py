@@ -271,3 +271,34 @@ class Report(Base):
     reason = Column(Text, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
     resolved = Column(Boolean, default=False)
+
+
+# ---------------------------------------------------------------------------
+# Social: following + circle chat
+# ---------------------------------------------------------------------------
+
+class Follow(Base):
+    """Twitter-style one-way follow — no approval needed. follower_id follows
+    followed_id."""
+
+    __tablename__ = "follows"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    follower_id = Column(UUID(as_uuid=False), ForeignKey("users.id"), nullable=False)
+    followed_id = Column(UUID(as_uuid=False), ForeignKey("users.id"), nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    __table_args__ = (UniqueConstraint("follower_id", "followed_id", name="uq_follow_pair"),)
+
+
+class CircleMessage(Base):
+    """A chat message within a study circle. Fetched via polling (after_id
+    cursor) rather than a live socket — simple and reliable on free hosting."""
+
+    __tablename__ = "circle_messages"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    circle_id = Column(UUID(as_uuid=False), ForeignKey("study_circles.id"), nullable=False)
+    user_id = Column(UUID(as_uuid=False), ForeignKey("users.id"), nullable=False)
+    body = Column(Text, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)

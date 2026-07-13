@@ -10,6 +10,7 @@ from app.routes_recitation import router as recitation_router
 from app.routes_hifz import router as hifz_router
 from app.routes_community import router as community_router
 from app.routes_miftah_method import router as miftah_method_router
+from app.routes_social import router as social_router
 
 app = FastAPI(title="Miftah API", version="0.1.0")
 
@@ -27,6 +28,7 @@ app.include_router(recitation_router)
 app.include_router(hifz_router)
 app.include_router(community_router)
 app.include_router(miftah_method_router)
+app.include_router(social_router)
 
 
 @app.on_event("startup")
