@@ -12,47 +12,51 @@ changing the API shape below.
 
 from dataclasses import dataclass
 
+_TASHKEEL_RANGES = [
+    (0x064B, 0x065F),  # standard tashkeel + extended Quranic marks
+    (0x06D6, 0x06ED),  # Quranic annotation signs (sajda, pause marks, etc.)
+]
 
-_LETTER_FOLD = {
-    # Hamza-bearing alifs and the Quranic "alef wasla" all collapse to a
-    # bare alef — speech-to-text engines transcribe spoken Arabic without
-    # reproducing hamza placement, so comparing them literally against the
-    # Uthmani reference (which preserves hamza precisely) flags every one
-    # of these as a wrong word even when the recitation is correct.
-    "\u0623": "\u0627",  # أ -> ا
-    "\u0625": "\u0627",  # إ -> ا
-    "\u0622": "\u0627",  # آ -> ا
-    "\u0671": "\u0627",  # ٱ (alef wasla) -> ا
-    "\u0624": "\u0648",  # ؤ -> و
-    "\u0626": "\u064a",  # ئ -> ي
-    "\u0629": "\u0647",  # ة -> ه (STT frequently normalizes ta marbuta to heh)
-    "\u0649": "\u064a",  # ى (alef maqsura) -> ي
-}
+_DAGGER_ALEF = "\u0670"   # superscript alef — represents a long "aa" that
+                          # Uthmani script sometimes writes as a full letter
+                          # and sometimes omits, word by word (e.g. omitted
+                          # in الرحمن/الرحيم, kept in العالمين) — no single
+                          # rule is correct for every word.
+_ALEF_WASLA = "\u0671"    # connecting-hamza alef — always folds to a plain
+                          # alef in ordinary spelling, no ambiguity here.
+_PLAIN_ALEF = "\u0627"
+
+
+def _strip_tashkeel(word: str) -> str:
+    def is_diacritic(ch: str) -> bool:
+        cp = ord(ch)
+        return any(lo <= cp <= hi for lo, hi in _TASHKEEL_RANGES)
+
+    return "".join(ch for ch in word if not is_diacritic(ch))
 
 
 def _normalize(word: str) -> str:
-    """Strip diacritics/punctuation and fold hamza/alef letter variants for
-    comparison. Covers standard Arabic tashkeel (U+064B-U+0652), the
-    Quranic superscript alef and related marks (U+0653-U+065F, U+0670), and
-    Quranic annotation signs (U+06D6-U+06ED) — the Uthmani script uses all
-    of these and recognized speech from STT typically includes none of
-    them, so we strip them from the reference too before comparing. We
-    also fold hamza-bearing letters to their bare form for the same
-    reason: STT doesn't reproduce hamza placement, so without folding,
-    correct recitations get scored as wrong on those words."""
-    diacritic_ranges = [
-        (0x064B, 0x065F),
-        (0x0670, 0x0670),
-        (0x06D6, 0x06ED),
-    ]
-
-    def is_diacritic(ch: str) -> bool:
-        cp = ord(ch)
-        return any(lo <= cp <= hi for lo, hi in diacritic_ranges)
-
-    folded = "".join(_LETTER_FOLD.get(ch, ch) for ch in word)
-    cleaned = "".join(ch for ch in folded if not is_diacritic(ch))
+    """Normalize a recognized (STT) word: strip tashkeel, fold alef wasla to
+    a plain alef, drop dagger alef (STT output never contains either of
+    these specialized Quranic-typesetting characters in the first place, so
+    there's nothing to fold on this side beyond cleanup)."""
+    cleaned = _strip_tashkeel(word)
+    cleaned = cleaned.replace(_ALEF_WASLA, _PLAIN_ALEF)
+    cleaned = cleaned.replace(_DAGGER_ALEF, "")
     return cleaned.strip(" \u0640.,!?").lower()
+
+
+def _normalize_variants(word: str) -> set[str]:
+    """Normalize a *reference* (Uthmani) word to the set of spellings a
+    correct recitation could plausibly be transcribed as. Alef wasla always
+    folds to a plain alef (unambiguous). A dagger alef is ambiguous — some
+    words' standard spelling drops the long vowel entirely, others keep it
+    as a full alef — so both variants are accepted rather than guessing."""
+    cleaned = _strip_tashkeel(word)
+    cleaned = cleaned.replace(_ALEF_WASLA, _PLAIN_ALEF)
+    dropped = cleaned.replace(_DAGGER_ALEF, "").strip(" \u0640.,!?").lower()
+    expanded = cleaned.replace(_DAGGER_ALEF, _PLAIN_ALEF).strip(" \u0640.,!?").lower()
+    return {dropped, expanded}
 
 
 @dataclass
@@ -66,12 +70,17 @@ class WordResult:
 def align_words(reference_words: list[str], recognized_words: list[str]) -> list[WordResult]:
     """
     Standard Needleman-Wunsch-style edit-distance alignment between two word
-    sequences, then walk the alignment to classify each position.
+    sequences, then walk the alignment to classify each position. A
+    reference word matches if the recognized word equals ANY of its accepted
+    spelling variants (see _normalize_variants).
     """
-    ref_norm = [_normalize(w) for w in reference_words]
+    ref_variants = [_normalize_variants(w) for w in reference_words]
     rec_norm = [_normalize(w) for w in recognized_words]
 
-    n, m = len(ref_norm), len(rec_norm)
+    def is_match(i: int, j: int) -> bool:
+        return rec_norm[j] in ref_variants[i]
+
+    n, m = len(ref_variants), len(rec_norm)
     # dp[i][j] = edit distance between ref[:i] and rec[:j]
     dp = [[0] * (m + 1) for _ in range(n + 1)]
     for i in range(n + 1):
@@ -80,7 +89,7 @@ def align_words(reference_words: list[str], recognized_words: list[str]) -> list
         dp[0][j] = j
     for i in range(1, n + 1):
         for j in range(1, m + 1):
-            if ref_norm[i - 1] == rec_norm[j - 1]:
+            if is_match(i - 1, j - 1):
                 dp[i][j] = dp[i - 1][j - 1]
             else:
                 dp[i][j] = 1 + min(
@@ -93,7 +102,7 @@ def align_words(reference_words: list[str], recognized_words: list[str]) -> list
     i, j = n, m
     results: list[WordResult] = []
     while i > 0 or j > 0:
-        if i > 0 and j > 0 and ref_norm[i - 1] == rec_norm[j - 1]:
+        if i > 0 and j > 0 and is_match(i - 1, j - 1):
             results.append(WordResult(i, reference_words[i - 1], recognized_words[j - 1], "correct"))
             i, j = i - 1, j - 1
         elif i > 0 and j > 0 and dp[i][j] == dp[i - 1][j - 1] + 1:
