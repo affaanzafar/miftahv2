@@ -23,26 +23,34 @@ import numpy as np
 import torch
 from transformers import WhisperForConditionalGeneration, WhisperProcessor
 
-MODEL_NAME = "tarteel-ai/whisper-base-ar-quran"
+MODEL_NAME = "tarteel-ai/whisper-tiny-ar-quran"
 TARGET_SR = 16000
 
 _processor: WhisperProcessor | None = None
 _model: WhisperForConditionalGeneration | None = None
 _forced_decoder_ids = None
+_device: str | None = None
 
 
 def _get_model():
-    global _processor, _model, _forced_decoder_ids
+    global _processor, _model, _forced_decoder_ids, _device
     if _model is None:
+        _device = "cuda" if torch.cuda.is_available() else "cpu"
         _processor = WhisperProcessor.from_pretrained(MODEL_NAME)
-        _model = WhisperForConditionalGeneration.from_pretrained(MODEL_NAME)
+        _model = WhisperForConditionalGeneration.from_pretrained(
+            MODEL_NAME,
+            # Avoids briefly holding two copies of the weights in memory
+            # while loading (the default path allocates once, then copies
+            # into place) — matters a lot on a memory-capped host like
+            # Render's free tier, less so anywhere with headroom.
+            low_cpu_mem_usage=True,
+        )
+        _model.to(_device)
+        if _device == "cuda":
+            _model.half()
         _model.eval()
-        # Explicitly force Arabic transcription (not translation) even
-        # though this checkpoint is Arabic-only — cheap insurance against
-        # the base Whisper multilingual decoder head guessing another
-        # language on a noisy/short clip.
         _forced_decoder_ids = _processor.get_decoder_prompt_ids(language="ar", task="transcribe")
-    return _processor, _model, _forced_decoder_ids
+    return _processor, _model, _forced_decoder_ids, _device
 
 
 def decode_audio_to_array(raw_bytes: bytes, target_sr: int = TARGET_SR) -> np.ndarray:
@@ -84,15 +92,18 @@ def transcribe(audio: np.ndarray, sr: int = TARGET_SR) -> str:
     if audio.size < int(0.2 * sr):
         return ""
 
-    processor, model, forced_decoder_ids = _get_model()
+    processor, model, forced_decoder_ids, device = _get_model()
     inputs = processor(audio, sampling_rate=sr, return_tensors="pt")
+    input_features = inputs["input_features"].to(device)
+    if device == "cuda":
+        input_features = input_features.half()
 
     with torch.no_grad():
         predicted_ids = model.generate(
-            inputs["input_features"],
+            input_features,
             forced_decoder_ids=forced_decoder_ids,
             max_new_tokens=200,
         )
 
-    text = processor.batch_decode(predicted_ids, skip_special_tokens=True)[0]
+    text = processor.batch_decode(predicted_ids.cpu(), skip_special_tokens=True)[0]
     return text.strip()
