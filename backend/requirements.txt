@@ -15,8 +15,12 @@ requests==2.32.3
 email-validator==2.2.0
 
 # Server-side speech-to-text (tarteel-ai/whisper-base-ar-quran)
+# CPU-only torch build — Render's free tier has no GPU, and the default
+# PyPI torch wheel on Linux pulls several GB of unused CUDA libraries
+# (nvidia-cudnn-cu12, nvidia-cublas-cu12, etc.) if you don't point it here.
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch==2.4.1+cpu
 transformers==4.45.2
-torch==2.4.1
 av==13.1.0
 numpy==1.26.4
 
