@@ -11,6 +11,7 @@ const LINKS = [
   { href: "/hifz", label: "Hifz" },
   { href: "/miftah-method", label: "Miftah Method" },
   { href: "/circles", label: "Circles" },
+  { href: "/account", label: "Account" },
 ];
 
 export default function Nav() {

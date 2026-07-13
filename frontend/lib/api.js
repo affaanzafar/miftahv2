@@ -75,6 +75,18 @@ export const api = {
     request(`/community/circles/${circleId}/invite`, { method: "POST", body: { email } }),
   reportMember: (circleId, payload) =>
     request(`/community/circles/${circleId}/report`, { method: "POST", body: payload }),
+  sendCircleMessage: (circleId, body) =>
+    request(`/community/circles/${circleId}/messages`, { method: "POST", body: { body } }),
+  listCircleMessages: (circleId, afterId = 0) =>
+    request(`/community/circles/${circleId}/messages?after_id=${afterId}`),
+
+  updateDisplayName: (display_name) => request("/auth/me", { method: "PATCH", body: { display_name } }),
+  myProfile: () => request("/social/me/profile"),
+  searchUsers: (q) => request(`/social/users/search?q=${encodeURIComponent(q)}`),
+  followUser: (userId) => request(`/social/users/${userId}/follow`, { method: "POST" }),
+  unfollowUser: (userId) => request(`/social/users/${userId}/unfollow`, { method: "POST" }),
+  listFollowers: (userId) => request(`/social/users/${userId}/followers`),
+  listFollowing: (userId) => request(`/social/users/${userId}/following`),
 
   startMiftahMethod: (surah_id, start_ayah_number, end_ayah_number) =>
     request("/miftah-method/sessions", {

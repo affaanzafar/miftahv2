@@ -1,8 +1,118 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Nav from "../../components/Nav";
 import { api } from "../../lib/api";
+
+const POLL_INTERVAL_MS = 4000;
+
+function CircleChat({ circleId, myUserId }) {
+  const [messages, setMessages] = useState([]);
+  const [draft, setDraft] = useState("");
+  const [sending, setSending] = useState(false);
+  const lastIdRef = useRef(0);
+  const listRef = useRef(null);
+  const pollRef = useRef(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function poll() {
+      try {
+        const newMessages = await api.listCircleMessages(circleId, lastIdRef.current);
+        if (cancelled || newMessages.length === 0) return;
+        lastIdRef.current = newMessages[newMessages.length - 1].id;
+        setMessages((prev) => [...prev, ...newMessages]);
+        requestAnimationFrame(() => {
+          listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: "smooth" });
+        });
+      } catch (e) {
+        // Transient errors just get retried on the next poll tick.
+      }
+    }
+
+    poll();
+    pollRef.current = setInterval(poll, POLL_INTERVAL_MS);
+    return () => {
+      cancelled = true;
+      clearInterval(pollRef.current);
+    };
+  }, [circleId]);
+
+  async function handleSend(e) {
+    e.preventDefault();
+    const body = draft.trim();
+    if (!body) return;
+    setSending(true);
+    setDraft("");
+    try {
+      const msg = await api.sendCircleMessage(circleId, body);
+      lastIdRef.current = msg.id;
+      setMessages((prev) => [...prev, msg]);
+      requestAnimationFrame(() => {
+        listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: "smooth" });
+      });
+    } catch (e) {
+      setDraft(body);
+    } finally {
+      setSending(false);
+    }
+  }
+
+  return (
+    <div style={{ marginTop: 16 }}>
+      <div
+        ref={listRef}
+        style={{
+          maxHeight: 280,
+          overflowY: "auto",
+          display: "flex",
+          flexDirection: "column",
+          gap: 8,
+          padding: "4px 2px",
+          marginBottom: 10,
+        }}
+      >
+        {messages.length === 0 && <p className="muted" style={{ margin: 0 }}>No messages yet — say salam.</p>}
+        {messages.map((m) => {
+          const mine = m.user_id === myUserId;
+          return (
+            <div
+              key={m.id}
+              style={{
+                alignSelf: mine ? "flex-end" : "flex-start",
+                maxWidth: "80%",
+                background: mine ? "rgba(45, 212, 167, 0.16)" : "rgba(255,255,255,0.06)",
+                border: "1px solid var(--glass-border)",
+                borderRadius: 12,
+                padding: "8px 12px",
+              }}
+            >
+              {!mine && (
+                <p className="muted" style={{ margin: "0 0 2px", fontSize: 12, fontWeight: 700 }}>
+                  {m.display_name || "Member"}
+                </p>
+              )}
+              <p style={{ margin: 0, fontSize: 14 }}>{m.body}</p>
+            </div>
+          );
+        })}
+      </div>
+      <form className="inline-form" onSubmit={handleSend}>
+        <input
+          type="text"
+          placeholder="Message the circle…"
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          maxLength={2000}
+        />
+        <button type="submit" className="secondary" disabled={sending || !draft.trim()}>
+          Send
+        </button>
+      </form>
+    </div>
+  );
+}
 
 export default function CirclesPage() {
   const [tab, setTab] = useState("mine"); // "mine" | "discover"
@@ -15,8 +125,10 @@ export default function CirclesPage() {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [activeCircle, setActiveCircle] = useState(null);
+  const [activeSubTab, setActiveSubTab] = useState("progress"); // "progress" | "chat"
   const [feed, setFeed] = useState([]);
   const [inviteEmail, setInviteEmail] = useState("");
+  const [myUserId, setMyUserId] = useState(null);
 
   function refreshMine() {
     api.listCircles().then(setCircles).catch((e) => setError(e.message));
@@ -27,6 +139,9 @@ export default function CirclesPage() {
   }
 
   useEffect(refreshMine, []);
+  useEffect(() => {
+    api.me().then((u) => setMyUserId(u.id)).catch(() => {});
+  }, []);
   useEffect(() => {
     if (tab === "discover") refreshDiscover(query);
   }, [tab]);
@@ -63,8 +178,12 @@ export default function CirclesPage() {
 
   async function openCircle(circle) {
     setError("");
-    setActiveCircle(activeCircle?.id === circle.id ? null : circle);
-    if (activeCircle?.id === circle.id) return;
+    if (activeCircle?.id === circle.id) {
+      setActiveCircle(null);
+      return;
+    }
+    setActiveCircle(circle);
+    setActiveSubTab("progress");
     try {
       const data = await api.circleProgress(circle.id);
       setFeed(data);
@@ -96,7 +215,7 @@ export default function CirclesPage() {
       <Nav />
       <main className="page">
         <h1 className="page-title">Study circles</h1>
-        <p className="page-subtitle">Share progress, invite people, and stay accountable together.</p>
+        <p className="page-subtitle">Share progress, chat, and stay accountable together.</p>
 
         {error && <div className="error-banner">{error}</div>}
         {notice && <div className="success-banner">{notice}</div>}
@@ -128,31 +247,54 @@ export default function CirclesPage() {
                     <span className="muted">{c.member_count} members</span>
                   </div>
                   <button className="secondary" onClick={() => openCircle(c)}>
-                    {activeCircle?.id === c.id ? "Hide" : "View progress"}
+                    {activeCircle?.id === c.id ? "Hide" : "Open"}
                   </button>
                 </div>
 
                 {activeCircle?.id === c.id && (
-                  <div style={{ marginTop: 16, borderTop: "1px solid var(--parchment-deep)", paddingTop: 16 }}>
-                    {feed.map((f) => (
-                      <div key={f.user_id} className="member-row">
-                        <span>{f.display_name || "Member"}</span>
-                        <span className="muted">{f.memorized_ayah_count} ayahs memorized</span>
-                        <span className="pill status-learning">{f.role}</span>
-                      </div>
-                    ))}
-                    {feed.length === 0 && <p className="muted">No members yet.</p>}
+                  <div style={{ marginTop: 16, borderTop: "1px solid var(--glass-border)", paddingTop: 16 }}>
+                    <div className="tabs" style={{ marginBottom: 12 }}>
+                      <button
+                        className={`tab-button ${activeSubTab === "progress" ? "active" : ""}`}
+                        onClick={() => setActiveSubTab("progress")}
+                      >
+                        Progress
+                      </button>
+                      <button
+                        className={`tab-button ${activeSubTab === "chat" ? "active" : ""}`}
+                        onClick={() => setActiveSubTab("chat")}
+                      >
+                        Chat
+                      </button>
+                    </div>
 
-                    <form className="inline-form" onSubmit={(e) => handleInvite(e, c.id)}>
-                      <input
-                        type="email"
-                        placeholder="Add someone by email"
-                        value={inviteEmail}
-                        onChange={(e) => setInviteEmail(e.target.value)}
-                        required
-                      />
-                      <button type="submit" className="secondary">Add</button>
-                    </form>
+                    {activeSubTab === "progress" && (
+                      <>
+                        {feed.map((f) => (
+                          <div key={f.user_id} className="member-row">
+                            <span>{f.display_name || "Member"}</span>
+                            <span className="muted">{f.memorized_ayah_count} ayahs memorized</span>
+                            <span className="pill status-learning">{f.role}</span>
+                          </div>
+                        ))}
+                        {feed.length === 0 && <p className="muted">No members yet.</p>}
+
+                        <form className="inline-form" onSubmit={(e) => handleInvite(e, c.id)}>
+                          <input
+                            type="email"
+                            placeholder="Add someone by email"
+                            value={inviteEmail}
+                            onChange={(e) => setInviteEmail(e.target.value)}
+                            required
+                          />
+                          <button type="submit" className="secondary">Add</button>
+                        </form>
+                      </>
+                    )}
+
+                    {activeSubTab === "chat" && myUserId && (
+                      <CircleChat circleId={c.id} myUserId={myUserId} />
+                    )}
                   </div>
                 )}
               </div>
