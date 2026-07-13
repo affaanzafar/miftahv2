@@ -8,8 +8,8 @@ run `ingest_quran.py` once you have network access to load the full 114 surahs.
 
 ## Stack
 
-- **Frontend:** Next.js 14 (App Router), plain CSS, browser Web Speech API for STT
-- **Backend:** FastAPI + SQLAlchemy
+- **Frontend:** Next.js 14 (App Router), plain CSS, `MediaRecorder` capture for STT input
+- **Backend:** FastAPI + SQLAlchemy, tarteel-ai/whisper-base-ar-quran (via Transformers) for STT
 - **DB:** Postgres
 
 ## What's real vs. what's a placeholder
@@ -36,10 +36,20 @@ run `ingest_quran.py` once you have network access to load the full 114 surahs.
 - Study circles: create, browse/search public circles under "Find circles", join,
   and add people directly by email under "My circles" — plus progress sharing and
   basic moderation (report / remove member).
-- Speech-to-text via the **browser's built-in Web Speech API** (`lib/useSpeechRecognition.js`)
-  — works in Chrome/Edge today, zero infrastructure. This is a deliberate MVP choice,
-  not a corner cut: it lets the whole recitation loop work before you've built or
-  fine-tuned anything.
+- Speech-to-text via **tarteel-ai/whisper-base-ar-quran** (`backend/app/stt.py`,
+  `POST /stt/transcribe`) — a Whisper model Tarteel AI fine-tuned specifically on
+  Quranic recitation, not conversational Arabic. This replaced an earlier browser
+  Web Speech API version after real testing showed two problems with it: poor
+  accuracy on tajweed-governed recitation, and — worse — mic feedback, since the
+  browser API doesn't expose its MediaStream, so echo cancellation couldn't be
+  applied and audio played back on speakers got picked back up as "recitation".
+  The frontend now captures audio itself via `getUserMedia` (with
+  `echoCancellation`/`noiseSuppression`/`autoGainControl` explicitly on), chunks it
+  on a volume-based pause detector (`frontend/lib/useSpeechRecognition.js`), and
+  uploads each chunk for transcription. The hook keeps the exact same
+  `{transcript, finalTranscript, isListening, isSupported, start, stop, reset}`
+  interface the old one had, so the recitation and Miftah Method pages needed no
+  changes.
 
 **Placeholders you need to fill in with network/compute access this sandbox doesn't have:**
 - `backend/app/seed_data.py` ships only 2 surahs so the app boots offline. Run
@@ -51,9 +61,13 @@ run `ingest_quran.py` once you have network access to load the full 114 surahs.
   what the API reports.
 - Reciter reference audio (Everyayah) isn't downloaded — `ingest_quran.py` notes where
   to plug that in.
-- If/when browser STT accuracy isn't good enough for real Quranic recitation (likely,
-  eventually), that's where a fine-tuned Whisper/Wav2Vec2 model comes in — swap it in
-  behind the same `useSpeechRecognition` interface without touching the rest of the app.
+- The Whisper model (`tarteel-ai/whisper-base-ar-quran`, ~290MB) downloads from
+  Hugging Face on first use of `/stt/transcribe` — needs network access on first run
+  (this sandbox has none, so this hasn't been exercised end-to-end here). After that
+  first download it's cached locally and loads from disk.
+- `av`/`torch`/`transformers` in `requirements.txt` add real install weight (`torch`
+  especially). Runs on CPU fine for short recitation clips; a GPU host would speed up
+  the `whisper-large-v3` fine-tune if you upgrade to it later for higher accuracy.
 - Forced alignment (word-level timing sync while speaking, for live highlighting as
   you recite rather than after-the-fact scoring) isn't built — current flow is
   record-then-submit-then-score per ayah, not live word-by-word tracking.
@@ -84,7 +98,8 @@ npm run dev
 ```
 
 Visit http://localhost:3000. Register an account, pick a surah, start a session,
-and recite — Chrome or Edge required for the microphone/speech recognition to work.
+and recite — any modern browser with mic access works now (recognition runs
+server-side, not in the browser).
 
 ## Project layout
 
@@ -105,26 +120,31 @@ backend/
     routes_miftah_method.py          /miftah-method/*  (the guided memorization state machine)
     correction.py                     Word-diff correction engine
     spaced_repetition.py                SM-2 algorithm
+    stt.py                                Whisper-based STT (tarteel-ai/whisper-base-ar-quran)
+    routes_stt.py                          /stt/transcribe  (accepts one audio chunk, returns text)
     seed_data.py                         Offline sample data (2 surahs)
     ingest_quran.py                       Real ingestion script — run separately, needs network
 frontend/
   app/                Next.js pages: home, login, register, recite/[surahId], hifz,
                         circles, miftah-method, miftah-method/session/[sessionId]
   components/Nav.js
-  lib/api.js           Fetch wrapper + auth token handling
-  lib/useSpeechRecognition.js   Web Speech API hook
+  lib/api.js           Fetch wrapper + auth token handling + STT upload
+  lib/useSpeechRecognition.js   MediaRecorder capture + pause-based chunking + server STT
 ```
 
 ## Suggested next steps, in order
 
 1. Run `ingest_quran.py` to get the full Quran instead of the 2-surah sample.
-2. Recite a few ayahs yourself and see how the browser's speech recognition holds up
-   on Arabic — this tells you fast whether you need a custom model sooner rather
-   than later. The Miftah Method's recall/cumulative phases use a stricter accuracy
+2. Recite a few ayahs yourself and see how `tarteel-ai/whisper-base-ar-quran` holds up
+   in practice — the Miftah Method's recall/cumulative phases use a stricter accuracy
    threshold (95%) than the plain recitation checker, so this matters even more there.
+   If accuracy still isn't enough, the `whisper-large-v3` fine-tune on the Tarteel
+   Everyayah dataset is a drop-in upgrade in `backend/app/stt.py` (slower, needs a GPU
+   to be practical).
 3. Add Alembic migrations before the schema moves further (currently using
    `create_all`, fine for now, not for production).
-4. If Web Speech API accuracy is the bottleneck: prototype Whisper (no fine-tuning
-   yet) on a few recorded samples to compare, per the original roadmap's step 5.
+4. Tune the VAD thresholds in `useSpeechRecognition.js` (`SILENCE_FLUSH_MS`,
+   `VAD_VOLUME_THRESHOLD`) against real recitation pacing/mic setups — these were
+   picked as reasonable defaults, not measured against real usage yet.
 5. Circle invites currently require the invitee to already have a Miftah account —
    an email-based invite-to-register flow would be a natural next step.

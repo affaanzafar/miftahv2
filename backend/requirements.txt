@@ -13,3 +13,10 @@ python-multipart==0.0.9
 requests==2.32.3
 
 email-validator==2.2.0
+
+# Server-side speech-to-text (tarteel-ai/whisper-base-ar-quran)
+transformers==4.45.2
+torch==2.4.1
+av==13.1.0
+numpy==1.26.4
+

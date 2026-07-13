@@ -104,7 +104,37 @@ export const api = {
       method: "POST",
       body: { recognized_text },
     }),
+
+  transcribeAudio: (blob) => transcribeAudioRequest(blob),
 };
+
+/**
+ * Sends one recorded audio chunk to the server-side STT endpoint
+ * (tarteel-ai/whisper-base-ar-quran) and returns the recognized text.
+ * A separate path from `request()` above because this is a multipart
+ * upload, not JSON — must NOT set a Content-Type header manually, or the
+ * browser won't attach the multipart boundary and the server can't parse it.
+ */
+async function transcribeAudioRequest(blob) {
+  const headers = {};
+  const token = getToken();
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+
+  const formData = new FormData();
+  formData.append("file", blob, "chunk.webm");
+
+  const res = await fetch(`${API_URL}/stt/transcribe`, {
+    method: "POST",
+    headers,
+    body: formData,
+  });
+
+  if (!res.ok) {
+    const detail = await res.json().catch(() => ({}));
+    throw new Error(detail.detail || `Transcription failed: ${res.status}`);
+  }
+  return res.json();
+}
 
 /**
  * Uploads a file directly from the browser to Cloudinary, using a
