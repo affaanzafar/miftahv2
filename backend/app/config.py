@@ -14,6 +14,13 @@ class Settings(BaseSettings):
     access_token_expire_minutes: int = 60
     cors_origins: str = "http://localhost:3000"
 
+    # Cloudinary: used to sign direct-to-Cloudinary uploads from the browser,
+    # so chat media never passes through this server. Empty strings are safe
+    # defaults for local dev; production must set real values via Render env vars.
+    cloudinary_cloud_name: str = ""
+    cloudinary_api_key: str = ""
+    cloudinary_api_secret: str = ""
+
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 
     @property

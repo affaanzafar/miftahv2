@@ -75,10 +75,14 @@ export const api = {
     request(`/community/circles/${circleId}/invite`, { method: "POST", body: { email } }),
   reportMember: (circleId, payload) =>
     request(`/community/circles/${circleId}/report`, { method: "POST", body: payload }),
-  sendCircleMessage: (circleId, body) =>
-    request(`/community/circles/${circleId}/messages`, { method: "POST", body: { body } }),
+  sendCircleMessage: (circleId, body, media_url = null, media_type = null) =>
+    request(`/community/circles/${circleId}/messages`, {
+      method: "POST",
+      body: { body, media_url, media_type },
+    }),
   listCircleMessages: (circleId, afterId = 0) =>
     request(`/community/circles/${circleId}/messages?after_id=${afterId}`),
+  getUploadSignature: () => request("/media/upload-signature"),
 
   updateDisplayName: (display_name) => request("/auth/me", { method: "PATCH", body: { display_name } }),
   myProfile: () => request("/social/me/profile"),
@@ -101,3 +105,37 @@ export const api = {
       body: { recognized_text },
     }),
 };
+
+/**
+ * Uploads a file directly from the browser to Cloudinary, using a
+ * short-lived signature fetched from our backend. The file itself never
+ * touches our server — this keeps Render's free-tier bandwidth/memory out
+ * of the picture entirely for media.
+ */
+export async function uploadToCloudinary(file) {
+  const sig = await api.getUploadSignature();
+
+  const formData = new FormData();
+  formData.append("file", file);
+  formData.append("api_key", sig.api_key);
+  formData.append("timestamp", sig.timestamp);
+  formData.append("signature", sig.signature);
+  formData.append("folder", sig.folder);
+
+  const res = await fetch(`https://api.cloudinary.com/v1_1/${sig.cloud_name}/auto/upload`, {
+    method: "POST",
+    body: formData,
+  });
+
+  if (!res.ok) {
+    const detail = await res.json().catch(() => ({}));
+    throw new Error(detail.error?.message || "Upload failed");
+  }
+
+  const data = await res.json();
+  // Cloudinary's resource_type is "image" | "video" | "raw" — collapse
+  // video into a generic "file" bucket for simpler UI handling, since a
+  // study circle chat isn't expected to be full of video attachments.
+  const media_type = data.resource_type === "image" ? "image" : "file";
+  return { url: data.secure_url, media_type, original_filename: data.original_filename };
+}

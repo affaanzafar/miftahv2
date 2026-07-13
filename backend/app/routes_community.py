@@ -29,13 +29,19 @@ def send_message(
 ):
     _require_membership(db, circle_id, current_user.id)
 
-    body = payload.body.strip()
-    if not body:
-        raise HTTPException(status_code=400, detail="Message can't be empty")
-    if len(body) > 2000:
+    body = (payload.body or "").strip() or None
+    if not body and not payload.media_url:
+        raise HTTPException(status_code=400, detail="Message needs text or an attachment")
+    if body and len(body) > 2000:
         raise HTTPException(status_code=400, detail="Message is too long")
 
-    msg = CircleMessage(circle_id=circle_id, user_id=current_user.id, body=body)
+    msg = CircleMessage(
+        circle_id=circle_id,
+        user_id=current_user.id,
+        body=body,
+        media_url=payload.media_url,
+        media_type=payload.media_type,
+    )
     db.add(msg)
     db.commit()
     db.refresh(msg)
@@ -46,6 +52,8 @@ def send_message(
         user_id=msg.user_id,
         display_name=current_user.display_name,
         body=msg.body,
+        media_url=msg.media_url,
+        media_type=msg.media_type,
         created_at=msg.created_at.isoformat(),
     )
 
@@ -74,6 +82,8 @@ def list_messages(
                 user_id=m.user_id,
                 display_name=user.display_name if user else None,
                 body=m.body,
+                media_url=m.media_url,
+                media_type=m.media_type,
                 created_at=m.created_at.isoformat(),
             )
         )

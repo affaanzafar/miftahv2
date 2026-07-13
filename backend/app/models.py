@@ -300,5 +300,7 @@ class CircleMessage(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     circle_id = Column(UUID(as_uuid=False), ForeignKey("study_circles.id"), nullable=False)
     user_id = Column(UUID(as_uuid=False), ForeignKey("users.id"), nullable=False)
-    body = Column(Text, nullable=False)
+    body = Column(Text, nullable=True)
+    media_url = Column(String, nullable=True)
+    media_type = Column(String, nullable=True)  # "image" | "video" | "file"
     created_at = Column(DateTime, default=datetime.utcnow)

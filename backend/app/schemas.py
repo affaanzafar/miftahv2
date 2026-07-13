@@ -257,7 +257,9 @@ class ProfileOut(BaseModel):
 
 
 class MessageCreate(BaseModel):
-    body: str
+    body: str | None = None
+    media_url: str | None = None
+    media_type: str | None = None
 
 
 class MessageOut(BaseModel):
@@ -265,5 +267,7 @@ class MessageOut(BaseModel):
     circle_id: str
     user_id: str
     display_name: str | None = None
-    body: str
+    body: str | None = None
+    media_url: str | None = None
+    media_type: str | None = None
     created_at: str

@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Nav from "../../components/Nav";
-import { api } from "../../lib/api";
+import { api, uploadToCloudinary } from "../../lib/api";
 
 const POLL_INTERVAL_MS = 4000;
 
@@ -10,9 +10,15 @@ function CircleChat({ circleId, myUserId }) {
   const [messages, setMessages] = useState([]);
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState("");
   const lastIdRef = useRef(0);
   const listRef = useRef(null);
   const pollRef = useRef(null);
+  const cameraInputRef = useRef(null);
+  const galleryInputRef = useRef(null);
+  const documentInputRef = useRef(null);
+  const [attachMenuOpen, setAttachMenuOpen] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -59,6 +65,34 @@ function CircleChat({ circleId, myUserId }) {
     }
   }
 
+  async function handleAttach(e) {
+    const file = e.target.files?.[0];
+    e.target.value = ""; // allow picking the same file again later
+    setAttachMenuOpen(false);
+    if (!file) return;
+
+    if (file.size > 10 * 1024 * 1024) {
+      setUploadError("Files must be under 10MB.");
+      return;
+    }
+
+    setUploading(true);
+    setUploadError("");
+    try {
+      const { url, media_type } = await uploadToCloudinary(file);
+      const msg = await api.sendCircleMessage(circleId, null, url, media_type);
+      lastIdRef.current = msg.id;
+      setMessages((prev) => [...prev, msg]);
+      requestAnimationFrame(() => {
+        listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: "smooth" });
+      });
+    } catch (err) {
+      setUploadError(err.message);
+    } finally {
+      setUploading(false);
+    }
+  }
+
   return (
     <div style={{ marginTop: 16 }}>
       <div
@@ -93,23 +127,122 @@ function CircleChat({ circleId, myUserId }) {
                   {m.display_name || "Member"}
                 </p>
               )}
-              <p style={{ margin: 0, fontSize: 14 }}>{m.body}</p>
+              {m.media_url && m.media_type === "image" && (
+                <img
+                  src={m.media_url}
+                  alt="Shared attachment"
+                  style={{ maxWidth: "100%", borderRadius: 8, display: "block", marginBottom: m.body ? 6 : 0 }}
+                />
+              )}
+              {m.media_url && m.media_type === "file" && (
+                <a
+                  href={m.media_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{ display: "block", marginBottom: m.body ? 6 : 0, fontSize: 13 }}
+                >
+                  📎 Attachment
+                </a>
+              )}
+              {m.body && <p style={{ margin: 0, fontSize: 14 }}>{m.body}</p>}
             </div>
           );
         })}
       </div>
-      <form className="inline-form" onSubmit={handleSend}>
-        <input
-          type="text"
-          placeholder="Message the circle…"
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          maxLength={2000}
-        />
-        <button type="submit" className="secondary" disabled={sending || !draft.trim()}>
-          Send
-        </button>
-      </form>
+      {uploadError && <div className="error-banner" style={{ marginBottom: 8 }}>{uploadError}</div>}
+
+      {/* Hidden inputs, one per source. `capture="environment"` on the
+          camera input is what makes mobile browsers open the camera app
+          directly instead of a gallery/file picker. */}
+      <input
+        type="file"
+        ref={cameraInputRef}
+        onChange={handleAttach}
+        style={{ display: "none" }}
+        accept="image/*"
+        capture="environment"
+      />
+      <input
+        type="file"
+        ref={galleryInputRef}
+        onChange={handleAttach}
+        style={{ display: "none" }}
+        accept="image/*,video/*"
+      />
+      <input
+        type="file"
+        ref={documentInputRef}
+        onChange={handleAttach}
+        style={{ display: "none" }}
+        accept=".pdf,.doc,.docx,.txt,.ppt,.pptx,.xls,.xlsx,.zip"
+      />
+
+      <div style={{ position: "relative" }}>
+        {attachMenuOpen && (
+          <div
+            className="card"
+            style={{
+              position: "absolute",
+              bottom: "calc(100% + 8px)",
+              left: 0,
+              display: "flex",
+              flexDirection: "column",
+              gap: 4,
+              padding: 8,
+              width: 180,
+              zIndex: 10,
+            }}
+          >
+            <button
+              type="button"
+              className="secondary"
+              style={{ justifyContent: "flex-start", textAlign: "left" }}
+              onClick={() => cameraInputRef.current?.click()}
+            >
+              📷 Take photo
+            </button>
+            <button
+              type="button"
+              className="secondary"
+              style={{ justifyContent: "flex-start", textAlign: "left" }}
+              onClick={() => galleryInputRef.current?.click()}
+            >
+              🖼️ Photo library
+            </button>
+            <button
+              type="button"
+              className="secondary"
+              style={{ justifyContent: "flex-start", textAlign: "left" }}
+              onClick={() => documentInputRef.current?.click()}
+            >
+              📄 Document
+            </button>
+          </div>
+        )}
+
+        <form className="inline-form" onSubmit={handleSend}>
+          <button
+            type="button"
+            className="secondary"
+            onClick={() => setAttachMenuOpen((open) => !open)}
+            disabled={uploading}
+            style={{ flexShrink: 0 }}
+            title="Attach"
+          >
+            {uploading ? "…" : attachMenuOpen ? "✕" : "📎"}
+          </button>
+          <input
+            type="text"
+            placeholder="Message the circle…"
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            maxLength={2000}
+          />
+          <button type="submit" className="secondary" disabled={sending || !draft.trim()}>
+            Send
+          </button>
+        </form>
+      </div>
     </div>
   );
 }
