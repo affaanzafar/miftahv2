@@ -23,6 +23,11 @@ import { useRef, useState, useCallback } from "react";
  */
 export function useSpeechRecognition({ lang = "ar-SA" } = {}) {
   const [transcript, setTranscript] = useState("");
+  // Only ever grows by appending confirmed (isFinal) results — safe to diff
+  // against for scoring. `transcript` above also includes interim guesses,
+  // which the browser can *revise* (not just extend) as it hears more, so
+  // it must never be used to build the scoring buffer directly.
+  const [finalTranscript, setFinalTranscript] = useState("");
   const [isListening, setIsListening] = useState(false);
   const [isSupported] = useState(
     typeof window !== "undefined" &&
@@ -41,14 +46,17 @@ export function useSpeechRecognition({ lang = "ar-SA" } = {}) {
 
     recognition.onresult = (event) => {
       let interimText = "";
+      let gotNewFinal = false;
       for (let i = event.resultIndex; i < event.results.length; i++) {
         const result = event.results[i];
         if (result.isFinal) {
           finalTranscriptRef.current += result[0].transcript + " ";
+          gotNewFinal = true;
         } else {
           interimText += result[0].transcript;
         }
       }
+      if (gotNewFinal) setFinalTranscript(finalTranscriptRef.current.trim());
       setTranscript((finalTranscriptRef.current + interimText).trim());
     };
 
@@ -94,6 +102,7 @@ export function useSpeechRecognition({ lang = "ar-SA" } = {}) {
 
     finalTranscriptRef.current = "";
     setTranscript("");
+    setFinalTranscript("");
     shouldListenRef.current = true;
     createAndStart();
   }, [isSupported, createAndStart]);
@@ -107,7 +116,8 @@ export function useSpeechRecognition({ lang = "ar-SA" } = {}) {
   const reset = useCallback(() => {
     finalTranscriptRef.current = "";
     setTranscript("");
+    setFinalTranscript("");
   }, []);
 
-  return { transcript, isListening, isSupported, start, stop, reset };
+  return { transcript, finalTranscript, isListening, isSupported, start, stop, reset };
 }

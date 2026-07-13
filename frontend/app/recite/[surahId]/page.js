@@ -38,12 +38,13 @@ export default function RecitePage() {
   const [appliedToHifz, setAppliedToHifz] = useState(false);
   const [checking, setChecking] = useState(false);
 
-  const { transcript, isListening, isSupported, start, stop, reset } = useSpeechRecognition();
+  const { transcript, finalTranscript, isListening, isSupported, start, stop, reset } = useSpeechRecognition();
 
   const bufferRef = useRef(""); // words accumulated since the last successful ayah check
-  const lastProcessedTranscriptRef = useRef("");
+  const lastProcessedFinalRef = useRef("");
   const focusIndexRef = useRef(0);
   const ayahRefs = useRef({});
+  const settleTimerRef = useRef(null);
 
   useEffect(() => {
     focusIndexRef.current = focusIndex;
@@ -84,25 +85,38 @@ export default function RecitePage() {
       setSessionId(session_id);
       setFocusIndex(0);
       bufferRef.current = "";
-      lastProcessedTranscriptRef.current = "";
+      lastProcessedFinalRef.current = "";
       start();
     } catch (e) {
       setError(e.message);
     }
   }
 
-  // Every time the live transcript grows, pull off whatever's new and add
-  // it to the rolling buffer for the ayah currently in focus.
+  // Only confirmed (final) speech ever touches the scoring buffer — interim
+  // guesses are shown live in the UI but can be revised by the browser as
+  // it hears more, so building the buffer from them causes corrupted,
+  // out-of-order fragments to get permanently baked in.
   useEffect(() => {
-    if (!isListening && !transcript) return;
-    const newPortion = transcript.slice(lastProcessedTranscriptRef.current.length).trim();
+    if (!finalTranscript) return;
+    const newPortion = finalTranscript.slice(lastProcessedFinalRef.current.length).trim();
     if (newPortion) {
       bufferRef.current = (bufferRef.current + " " + newPortion).trim();
     }
-    lastProcessedTranscriptRef.current = transcript;
-    maybeCheckFocusAyah();
+    lastProcessedFinalRef.current = finalTranscript;
+    scheduleFocusCheck();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [transcript]);
+  }, [finalTranscript]);
+
+  // Debounce: only actually score the focus ayah after ~700ms with no new
+  // finalized speech. This is what makes "enough words are in" mean "the
+  // reciter paused here" rather than "a raw count was crossed mid-ayah" —
+  // it's what was cutting people off before they finished an ayah.
+  function scheduleFocusCheck() {
+    if (settleTimerRef.current) clearTimeout(settleTimerRef.current);
+    settleTimerRef.current = setTimeout(() => {
+      maybeCheckFocusAyah();
+    }, 700);
+  }
 
   async function maybeCheckFocusAyah() {
     const idx = focusIndexRef.current;
@@ -112,20 +126,26 @@ export default function RecitePage() {
     const bufferWordCount = bufferRef.current.split(/\s+/).filter(Boolean).length;
     const expectedWordCount = ayah.words.length;
 
-    // Wait until roughly enough words have been said for this ayah before
-    // scoring it — short ayahs need fewer words to trigger a check.
-    if (bufferWordCount < Math.max(2, Math.ceil(expectedWordCount * 0.6))) return;
+    // Require the full expected word count (not a fraction of it) before
+    // scoring — combined with the settle delay above, this means we only
+    // check once the reciter has actually said the whole ayah and paused,
+    // instead of guessing off a partial recitation.
+    if (bufferWordCount < expectedWordCount) return;
 
     setChecking(true);
     try {
       const res = await api.submitAttempt(sessionId, ayah.id, bufferRef.current);
       setAyahResults((prev) => ({ ...prev, [ayah.id]: res }));
 
-      // Carry over any extra words beyond what this ayah needed — the
-      // reciter may already be partway into the next ayah.
-      const consumedWords = bufferRef.current.split(/\s+/).filter(Boolean).slice(0, expectedWordCount);
-      const leftoverWords = bufferRef.current.split(/\s+/).filter(Boolean).slice(expectedWordCount);
-      bufferRef.current = leftoverWords.join(" ");
+      // Trim exactly the words the alignment actually consumed for this
+      // ayah — not a fixed expectedWordCount — since a "missed" expected
+      // word consumes zero transcript words, and an "added" word consumes
+      // one that isn't in ayah.words. Using the fixed count here is what
+      // let a single insertion/deletion anywhere upstream cascade into
+      // every ayah after it being checked against the wrong slice of buffer.
+      const consumedCount = res.results.filter((r) => r.status !== "missed").length;
+      const bufferWords = bufferRef.current.split(/\s+/).filter(Boolean);
+      bufferRef.current = bufferWords.slice(consumedCount).join(" ");
 
       if (idx + 1 < ayahsInRange.length) {
         setFocusIndex(idx + 1);
@@ -141,6 +161,7 @@ export default function RecitePage() {
   }
 
   async function finishUp() {
+    if (settleTimerRef.current) clearTimeout(settleTimerRef.current);
     stop();
     try {
       const result = await api.completeSession(sessionId);
@@ -164,18 +185,20 @@ export default function RecitePage() {
   }
 
   function handleTogglePause() {
+    if (settleTimerRef.current) clearTimeout(settleTimerRef.current);
     if (isListening) {
       stop();
     } else {
       reset();
-      lastProcessedTranscriptRef.current = "";
+      lastProcessedFinalRef.current = "";
       start();
     }
   }
 
   function jumpToAyah(idx) {
+    if (settleTimerRef.current) clearTimeout(settleTimerRef.current);
     bufferRef.current = "";
-    lastProcessedTranscriptRef.current = "";
+    lastProcessedFinalRef.current = "";
     reset();
     setFocusIndex(idx);
   }
