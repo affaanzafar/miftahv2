@@ -118,43 +118,54 @@ export default function RecitePage() {
     }, 700);
   }
 
-  async function maybeCheckFocusAyah() {
-    const idx = focusIndexRef.current;
-    const ayah = ayahsInRange[idx];
-    if (!ayah || checking) return;
-
-    const bufferWordCount = bufferRef.current.split(/\s+/).filter(Boolean).length;
-    const expectedWordCount = ayah.words.length;
-
-    // Require the full expected word count (not a fraction of it) before
-    // scoring — combined with the settle delay above, this means we only
-    // check once the reciter has actually said the whole ayah and paused,
-    // instead of guessing off a partial recitation.
-    if (bufferWordCount < expectedWordCount) return;
-
+async function maybeCheckFocusAyah() {
+    // Prevent concurrent executions from stepping on each other
+    if (checking) return;
+    
     setChecking(true);
+    
     try {
-      const res = await api.submitAttempt(sessionId, ayah.id, bufferRef.current);
-      setAyahResults((prev) => ({ ...prev, [ayah.id]: res }));
+      // Loop as long as there is an active ayah and enough text in the buffer
+      while (true) {
+        const idx = focusIndexRef.current;
+        const ayah = ayahsInRange[idx];
+        if (!ayah) break;
 
-      // Trim exactly the words the alignment actually consumed for this
-      // ayah — not a fixed expectedWordCount — since a "missed" expected
-      // word consumes zero transcript words, and an "added" word consumes
-      // one that isn't in ayah.words. Using the fixed count here is what
-      // let a single insertion/deletion anywhere upstream cascade into
-      // every ayah after it being checked against the wrong slice of buffer.
-      const consumedCount = res.results.filter((r) => r.status !== "missed").length;
-      const bufferWords = bufferRef.current.split(/\s+/).filter(Boolean);
-      bufferRef.current = bufferWords.slice(consumedCount).join(" ");
+        const bufferWords = bufferRef.current.split(/\s+/).filter(Boolean);
+        const bufferWordCount = bufferWords.length;
+        const expectedWordCount = ayah.words.length;
 
-      if (idx + 1 < ayahsInRange.length) {
-        setFocusIndex(idx + 1);
-      } else {
-        await finishUp();
+        // If the buffer doesn't have enough words for the CURRENT focus ayah, 
+        // stop looping and wait for the next audio chunk.
+        if (bufferWordCount < expectedWordCount) {
+          break;
+        }
+
+        // Submit ONLY the text currently inside the buffer
+        const res = await api.submitAttempt(sessionId, ayah.id, bufferRef.current);
+        
+        // Update results state immediately for the UI
+        setAyahResults((prev) => ({ ...prev, [ayah.id]: res }));
+
+        // Calculate exactly how many words the alignment engine consumed
+        const consumedCount = res.results.filter((r) => r.status !== "missed").length;
+        
+        // Trim the consumed words out of the buffer cleanly
+        bufferRef.current = bufferWords.slice(consumedCount).join(" ");
+
+        // Advance the focus index pointers
+        if (idx + 1 < ayahsInRange.length) {
+          focusIndexRef.current = idx + 1;
+          setFocusIndex(idx + 1);
+          // Continue the loop to see if the remaining buffer satisfies the next ayah!
+        } else {
+          await finishUp();
+          break;
+        }
       }
     } catch (e) {
-      // If a single check fails, don't kill the whole session — just keep
-      // listening and try again once more speech comes in.
+      // Log or handle individual failure without killing the loop capability
+      console.error("Ayah validation error:", e.message);
     } finally {
       setChecking(false);
     }
@@ -338,29 +349,15 @@ export default function RecitePage() {
         </div>
 
         {sessionId && !sessionSummary && (
-          <div
-            className="card"
-            style={{
-              position: "fixed",
-              left: "50%",
-              transform: "translateX(-50%)",
-              bottom: 20,
-              width: "min(760px, calc(100% - 40px))",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              gap: 16,
-              zIndex: 40,
-            }}
-          >
-            <div>
+          <div className="card recite-controls">
+            <div className="recite-controls-info">
               <p className="muted" style={{ margin: 0 }}>
                 Ayah {focusIndex + 1} of {ayahsInRange.length}
                 {checking && " · checking…"}
               </p>
               <p style={{ margin: "2px 0 0", fontSize: 14, minHeight: 20 }}>{transcript}</p>
             </div>
-            <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
+            <div className="recite-controls-actions">
               <button onClick={handleTogglePause}>{isListening ? "⏸ Pause" : "🎙️ Resume"}</button>
               <button className="secondary" onClick={finishUp}>
                 Finish now

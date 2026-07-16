@@ -176,6 +176,85 @@ body {
   align-items: center;
 }
 
+.nav-toggle {
+  display: none;
+  width: 40px;
+  height: 40px;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 1px solid var(--glass-border);
+  border-radius: 10px;
+  color: var(--mist);
+  font-size: 18px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+/* Below this width the link row no longer fits next to the brand without
+   crowding or overlapping — collapse it into a hamburger-triggered dropdown
+   instead of letting flex squash everything into each other. */
+@media (max-width: 760px) {
+  .nav {
+    padding: 12px 16px;
+    margin: 12px 12px 0;
+  }
+
+  .nav-brand {
+    font-size: 18px;
+  }
+
+  .nav-toggle {
+    display: flex;
+  }
+
+  .nav-links {
+    display: none;
+    position: absolute;
+    top: calc(100% + 10px);
+    left: 0;
+    right: 0;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 4px;
+    padding: 10px;
+    background: var(--glass-strong);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius);
+    backdrop-filter: blur(18px) saturate(160%);
+    -webkit-backdrop-filter: blur(18px) saturate(160%);
+    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.4);
+    z-index: 60;
+  }
+
+  .nav-links-open {
+    display: flex;
+  }
+
+  .nav-links a,
+  .nav-link {
+    width: 100%;
+    padding: 12px 14px;
+    border-radius: 10px;
+    font-size: 15px;
+  }
+
+  .nav-links a:hover,
+  .nav-link:hover {
+    background: var(--glass);
+  }
+
+  /* The animated underline is meaningless once links stack vertically. */
+  .nav-underline {
+    display: none;
+  }
+
+  .nav-links .secondary {
+    width: 100%;
+    margin-top: 4px;
+  }
+}
+
 .nav-links a {
   color: var(--mist-soft);
   text-decoration: none;
@@ -334,6 +413,57 @@ h1.page-title {
   background: var(--glass-strong);
   box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
   border-color: rgba(255, 255, 255, 0.24);
+}
+
+/* --------------------------- Recite control bar -------------------------
+   Floating "Ayah X of Y / transcript / Pause / Finish now" bar pinned to
+   the bottom of the recite page. On narrow screens the row layout doesn't
+   leave enough width for both the live transcript text and the two
+   buttons, so they compress into each other — stack it into a column
+   below that width instead.
+   -------------------------------------------------------------------- */
+
+.recite-controls {
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: 20px;
+  width: min(760px, calc(100% - 40px));
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  z-index: 40;
+}
+
+.recite-controls-info {
+  min-width: 0;
+  flex: 1;
+}
+
+.recite-controls-info p {
+  overflow-wrap: anywhere;
+}
+
+.recite-controls-actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+@media (max-width: 640px) {
+  .recite-controls {
+    bottom: 12px;
+    width: calc(100% - 24px);
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+    padding: 16px;
+  }
+
+  .recite-controls-actions button {
+    flex: 1;
+  }
 }
 
 .card-row {

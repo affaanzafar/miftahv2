@@ -19,6 +19,7 @@ export default function Nav() {
   const pathname = usePathname();
   const loggedIn = typeof window !== "undefined" && !!getToken();
   const [scrolled, setScrolled] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
 
   useEffect(() => {
     function onScroll() {
@@ -29,8 +30,16 @@ export default function Nav() {
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
+  // Narrow screens (Android/portrait) render the links as a dropdown
+  // instead of a row — close it whenever the route changes so it doesn't
+  // stay open over the new page.
+  useEffect(() => {
+    setMenuOpen(false);
+  }, [pathname]);
+
   function logout() {
     clearToken();
+    setMenuOpen(false);
     router.push("/login");
   }
 
@@ -39,11 +48,20 @@ export default function Nav() {
       <Link href="/" className="nav-brand">
         مفتاح Miftah
       </Link>
-      <div className="nav-links">
+      <button
+        type="button"
+        className="nav-toggle"
+        aria-label={menuOpen ? "Close menu" : "Open menu"}
+        aria-expanded={menuOpen}
+        onClick={() => setMenuOpen((open) => !open)}
+      >
+        {menuOpen ? "✕" : "☰"}
+      </button>
+      <div className={`nav-links${menuOpen ? " nav-links-open" : ""}`}>
         {LINKS.map((link) => {
           const active = pathname === link.href;
           return (
-            <Link key={link.href} href={link.href} className="nav-link">
+            <Link key={link.href} href={link.href} className="nav-link" onClick={() => setMenuOpen(false)}>
               {link.label}
               {active && (
                 <motion.div
@@ -60,7 +78,9 @@ export default function Nav() {
             Log out
           </button>
         ) : (
-          <Link href="/login">Log in</Link>
+          <Link href="/login" onClick={() => setMenuOpen(false)}>
+            Log in
+          </Link>
         )}
       </div>
     </nav>
