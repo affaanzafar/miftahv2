@@ -1,232 +1,117 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
-import { api } from "./api";
+import { useRef, useState, useCallback } from "react";
 
 /**
- * Server-side speech-to-text, backed by tarteel-ai/whisper-base-ar-quran
- * (a Whisper model fine-tuned by Tarteel AI on Quranic recitation, not
- * conversational Arabic — see backend/app/stt.py).
+ * Wraps the browser's built-in SpeechRecognition (Web Speech API).
+ * Phase 1 "audio capture + STT" step: no server round-trip, no model to
+ * host or fine-tune. Works today in Chrome/Edge; Safari/Firefox support is
+ * partial, so surface `isSupported` in the UI.
  *
- * Replaces the previous browser-native Web Speech API implementation for
- * two reasons found in testing:
- *   1. Accuracy — the browser's built-in `ar-SA` recognizer is tuned for
- *      everyday spoken Arabic, not tajweed-governed Quranic recitation, and
- *      produced unrelated/garbled output.
- *   2. Feedback/echo — the built-in SpeechRecognition API gives no access
- *      to the underlying MediaStream, so its mic capture can't be told to
- *      apply echo cancellation. On speakers (no headphones), audio played
- *      back by the page or OS gets picked back up as "recitation". This
- *      hook captures its own stream via getUserMedia with
- *      echoCancellation/noiseSuppression/autoGainControl explicitly on.
+ * continuous: true, because recitation now runs across a whole surah in
+ * one open session rather than one ayah at a time. To avoid the duplicate-
+ * transcript bug this used to have, onresult only processes results from
+ * event.resultIndex onward (never re-reads old entries), and the browser's
+ * tendency to silently stop continuous recognition after ~60s of speech is
+ * handled by auto-restarting whenever the session ends but the caller
+ * hasn't explicitly called stop().
  *
- * Same public interface as the old hook — { transcript, finalTranscript,
- * isListening, isSupported, start, stop, reset } — so recite/page.js and
- * miftah-method/session/[sessionId]/page.js needed no changes.
- *
- * How chunking works (since Whisper is batch, not streaming like the old
- * API's interim results): audio is recorded continuously, but a simple
- * volume-based VAD (Web Audio AnalyserNode) watches for a pause after
- * speech. On ~700ms of silence following detected speech — or a 12s hard
- * cap, in case someone recites with no pause at all — the current segment
- * is finalized (MediaRecorder.stop() → a fully self-contained webm blob),
- * uploaded to /stt/transcribe, and a new segment starts immediately so
- * recording never has a gap the user would notice. Each segment's returned
- * text is appended to `finalTranscript`, mirroring how the old hook grew
- * `finalTranscript` from each `isFinal` speech-recognition result — so the
- * recite page's existing buffering/debounce logic needed no changes either.
+ * Swap point for later: once you have a fine-tuned Quranic ASR model,
+ * replace this hook's internals with MediaRecorder + a POST to your own
+ * STT endpoint, keeping the same { transcript, isListening, start, stop }
+ * interface so the recitation UI doesn't need to change.
  */
-
-const SILENCE_FLUSH_MS = 700; // pause length that ends a segment
-const MAX_SEGMENT_MS = 12000; // hard cap so a run-on recitation still flushes periodically
-const VAD_INTERVAL_MS = 100;
-const VAD_VOLUME_THRESHOLD = 0.015; // rough RMS threshold for "speech present"
-
-export function useSpeechRecognition() {
+export function useSpeechRecognition({ lang = "ar-SA" } = {}) {
   const [transcript, setTranscript] = useState("");
+  // Only ever grows by appending confirmed (isFinal) results — safe to diff
+  // against for scoring. `transcript` above also includes interim guesses,
+  // which the browser can *revise* (not just extend) as it hears more, so
+  // it must never be used to build the scoring buffer directly.
   const [finalTranscript, setFinalTranscript] = useState("");
   const [isListening, setIsListening] = useState(false);
   const [isSupported] = useState(
     typeof window !== "undefined" &&
-      !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia) &&
-      typeof window.MediaRecorder !== "undefined"
+      !!(window.SpeechRecognition || window.webkitSpeechRecognition)
   );
-
-  const streamRef = useRef(null);
-  const audioCtxRef = useRef(null);
-  const analyserRef = useRef(null);
-  const vadTimerRef = useRef(null);
-  const recorderRef = useRef(null);
-  const chunksRef = useRef([]);
-  const segmentStartRef = useRef(0);
-  const hasSpeechRef = useRef(false);
-  const silenceStartRef = useRef(null);
-  const shouldListenRef = useRef(false);
+  const recognitionRef = useRef(null);
   const finalTranscriptRef = useRef("");
+  const shouldListenRef = useRef(false);
 
-  const mimeType = (() => {
-    if (typeof window === "undefined" || !window.MediaRecorder) return "";
-    const candidates = ["audio/webm;codecs=opus", "audio/webm", "audio/ogg;codecs=opus"];
-    return candidates.find((c) => window.MediaRecorder.isTypeSupported(c)) || "";
-  })();
+  const createAndStart = useCallback(() => {
+    const SpeechRecognitionImpl = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const recognition = new SpeechRecognitionImpl();
+    recognition.lang = lang;
+    recognition.continuous = true;
+    recognition.interimResults = true;
 
-  const appendFinal = useCallback((text) => {
-    if (!text) return;
-    finalTranscriptRef.current = (finalTranscriptRef.current + " " + text).trim();
-    setFinalTranscript(finalTranscriptRef.current);
-    setTranscript(finalTranscriptRef.current);
-  }, []);
-
-  const cleanupStream = useCallback(() => {
-    if (audioCtxRef.current) {
-      audioCtxRef.current.close().catch(() => {});
-      audioCtxRef.current = null;
-    }
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach((t) => t.stop());
-      streamRef.current = null;
-    }
-  }, []);
-
-  const startSegmentRecorder = useCallback(() => {
-    if (!streamRef.current || !shouldListenRef.current) return;
-
-    const recorder = new window.MediaRecorder(streamRef.current, mimeType ? { mimeType } : undefined);
-    chunksRef.current = [];
-    segmentStartRef.current = Date.now();
-    hasSpeechRef.current = false;
-    silenceStartRef.current = null;
-
-    recorder.ondataavailable = (e) => {
-      if (e.data && e.data.size > 0) chunksRef.current.push(e.data);
-    };
-
-    recorder.onstop = async () => {
-      const blob = new Blob(chunksRef.current, { type: mimeType || "audio/webm" });
-      chunksRef.current = [];
-
-      const hadSpeech = hasSpeechRef.current;
-      if (shouldListenRef.current) {
-        // Kick off the next segment immediately so there's no audible gap
-        // in capture while this segment's blob uploads/transcribes.
-        startSegmentRecorder();
-      } else {
-        // Caller pressed stop — this was the final segment. Release the
-        // mic/audio graph now; its audio (if any) still gets transcribed
-        // below so the last few words the user said aren't dropped.
-        cleanupStream();
-      }
-
-      if (hadSpeech && blob.size > 0) {
-        try {
-          const { transcript: text } = await api.transcribeAudio(blob);
-          appendFinal(text);
-        } catch (e) {
-          // Drop a failed chunk rather than killing the whole session —
-          // matches the old hook's "keep listening" behavior on a
-          // recognition hiccup.
+    recognition.onresult = (event) => {
+      let interimText = "";
+      let gotNewFinal = false;
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        const result = event.results[i];
+        if (result.isFinal) {
+          finalTranscriptRef.current += result[0].transcript + " ";
+          gotNewFinal = true;
+        } else {
+          interimText += result[0].transcript;
         }
       }
+      if (gotNewFinal) setFinalTranscript(finalTranscriptRef.current.trim());
+      setTranscript((finalTranscriptRef.current + interimText).trim());
     };
 
-    recorderRef.current = recorder;
-    recorder.start();
-  }, [mimeType, appendFinal]);
-
-  const flushSegment = useCallback(() => {
-    if (recorderRef.current && recorderRef.current.state !== "inactive") {
-      recorderRef.current.stop();
-    }
-  }, []);
-
-  const runVadTick = useCallback(() => {
-    const analyser = analyserRef.current;
-    if (!analyser) return;
-
-    const buffer = new Uint8Array(analyser.fftSize);
-    analyser.getByteTimeDomainData(buffer);
-    let sumSquares = 0;
-    for (let i = 0; i < buffer.length; i++) {
-      const v = (buffer[i] - 128) / 128;
-      sumSquares += v * v;
-    }
-    const rms = Math.sqrt(sumSquares / buffer.length);
-
-    const now = Date.now();
-    const segmentAge = now - segmentStartRef.current;
-
-    if (rms >= VAD_VOLUME_THRESHOLD) {
-      hasSpeechRef.current = true;
-      silenceStartRef.current = null;
-    } else if (hasSpeechRef.current) {
-      if (silenceStartRef.current === null) silenceStartRef.current = now;
-      if (now - silenceStartRef.current >= SILENCE_FLUSH_MS) {
-        flushSegment();
-        return;
+    recognition.onerror = (event) => {
+      // "no-speech" fires often during natural pauses — not a real error,
+      // the onend handler below will restart us if we're still supposed
+      // to be listening.
+      if (event.error !== "no-speech" && event.error !== "aborted") {
+        shouldListenRef.current = false;
+        setIsListening(false);
       }
-    }
+    };
 
-    if (segmentAge >= MAX_SEGMENT_MS && hasSpeechRef.current) {
-      flushSegment();
-    }
-  }, [flushSegment]);
+    recognition.onend = () => {
+      if (shouldListenRef.current) {
+        // Browser silently ended the session (common timeout behavior)
+        // but we're still supposed to be listening — pick back up.
+        createAndStart();
+      } else {
+        setIsListening(false);
+      }
+    };
 
-  const start = useCallback(async () => {
+    recognitionRef.current = recognition;
+    recognition.start();
+    setIsListening(true);
+  }, [lang]);
+
+  const start = useCallback(() => {
     if (!isSupported) return;
+
+    if (recognitionRef.current) {
+      recognitionRef.current.onresult = null;
+      recognitionRef.current.onerror = null;
+      recognitionRef.current.onend = null;
+      try {
+        recognitionRef.current.abort();
+      } catch (e) {
+        /* no-op */
+      }
+      recognitionRef.current = null;
+    }
 
     finalTranscriptRef.current = "";
     setTranscript("");
     setFinalTranscript("");
     shouldListenRef.current = true;
-
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true,
-        },
-      });
-      streamRef.current = stream;
-
-      const AudioContextImpl = window.AudioContext || window.webkitAudioContext;
-      const audioCtx = new AudioContextImpl();
-      const source = audioCtx.createMediaStreamSource(stream);
-      const analyser = audioCtx.createAnalyser();
-      analyser.fftSize = 1024;
-      source.connect(analyser);
-      audioCtxRef.current = audioCtx;
-      analyserRef.current = analyser;
-
-      vadTimerRef.current = setInterval(runVadTick, VAD_INTERVAL_MS);
-
-      setIsListening(true);
-      startSegmentRecorder();
-    } catch (e) {
-      shouldListenRef.current = false;
-      setIsListening(false);
-    }
-  }, [isSupported, runVadTick, startSegmentRecorder]);
+    createAndStart();
+  }, [isSupported, createAndStart]);
 
   const stop = useCallback(() => {
     shouldListenRef.current = false;
-
-    if (vadTimerRef.current) {
-      clearInterval(vadTimerRef.current);
-      vadTimerRef.current = null;
-    }
-
-    if (recorderRef.current && recorderRef.current.state !== "inactive") {
-      // recorder.onstop (set in startSegmentRecorder) sees
-      // shouldListenRef.current === false and handles both transcribing
-      // this final segment and releasing the mic/audio graph afterward.
-      recorderRef.current.stop();
-    } else {
-      cleanupStream();
-    }
-
+    recognitionRef.current?.stop();
     setIsListening(false);
-  }, [cleanupStream]);
+  }, []);
 
   const reset = useCallback(() => {
     finalTranscriptRef.current = "";
