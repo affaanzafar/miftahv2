@@ -45,6 +45,8 @@ export default function RecitePage() {
   const focusIndexRef = useRef(0);
   const ayahRefs = useRef({});
   const settleTimerRef = useRef(null);
+  const checkingRef = useRef(false); // mirrors `checking` state but read-safe inside async closures
+  const pendingRecheckRef = useRef(false);
 
   useEffect(() => {
     focusIndexRef.current = focusIndex;
@@ -103,71 +105,92 @@ export default function RecitePage() {
       bufferRef.current = (bufferRef.current + " " + newPortion).trim();
     }
     lastProcessedFinalRef.current = finalTranscript;
-    scheduleFocusCheck();
+    // Check as soon as enough words are in — no artificial silence wait.
+    // maybeCheckFocusAyah already refuses to score until the full expected
+    // word count for this ayah has arrived, so this doesn't risk scoring a
+    // half-finished ayah; it just removes the extra latency that made
+    // continuous, unpaused recitation feel like it needed a pause to
+    // "unstick" the checker.
+    maybeCheckFocusAyah();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [finalTranscript]);
 
-  // Debounce: only actually score the focus ayah after ~700ms with no new
-  // finalized speech. This is what makes "enough words are in" mean "the
-  // reciter paused here" rather than "a raw count was crossed mid-ayah" —
-  // it's what was cutting people off before they finished an ayah.
-  function scheduleFocusCheck() {
-    if (settleTimerRef.current) clearTimeout(settleTimerRef.current);
-    settleTimerRef.current = setTimeout(() => {
-      maybeCheckFocusAyah();
-    }, 700);
-  }
+  async function maybeCheckFocusAyah() {
+    // Gate on the ref, not the `checking` state — React state updates are
+    // batched/async, so two finalized speech chunks arriving close together
+    // (normal during fluid, unpaused recitation) could both read `checking`
+    // as still false and run concurrently, both reading/trimming
+    // bufferRef.current at once. That race was corrupting the word window
+    // sent for scoring — a real recitation could come back with a wrong
+    // score for reasons that had nothing to do with what was actually said.
+    if (checkingRef.current) {
+      pendingRecheckRef.current = true;
+      return;
+    }
 
-async function maybeCheckFocusAyah() {
-    // Prevent concurrent executions from stepping on each other
-    if (checking) return;
-    
+    const idx = focusIndexRef.current;
+    const ayah = ayahsInRange[idx];
+    if (!ayah) return;
+
+    const bufferWords = bufferRef.current.split(/\s+/).filter(Boolean);
+    const expectedWordCount = ayah.words.length;
+
+    // Require the full expected word count (not a fraction of it) before
+    // scoring — this alone (no artificial silence wait) is what keeps a
+    // partial recitation from being scored too early.
+    if (bufferWords.length < expectedWordCount) return;
+
+    // Only score against a window sized to *this* ayah, not the whole
+    // buffer. A fluid reciter (i.e. everyone — nobody pauses hard after
+    // every single ayah) will often have already started the next ayah
+    // by the time this fires, so the buffer can contain real spillover.
+    // Sending that whole overflowing buffer to alignment let words from
+    // the *next* ayah get matched into the *current* one — especially bad
+    // in surahs with repeated phrases (e.g. "الرحمن الرحيم" appears in
+    // both ayah 1 and ayah 3 of Al-Fatihah), where the aligner could latch
+    // onto the wrong occurrence and silently wreck an otherwise perfect
+    // score. A little slack above the expected count is kept so a stutter
+    // or repeated word isn't truncated mid-recitation; anything beyond
+    // that is left in the buffer to roll over and be scored correctly
+    // against the *next* ayah instead.
+    const SLACK_WORDS = 4;
+    const windowWords = bufferWords.slice(0, expectedWordCount + SLACK_WORDS);
+    const bufferForCheck = windowWords.join(" ");
+
+    checkingRef.current = true;
     setChecking(true);
-    
     try {
-      // Loop as long as there is an active ayah and enough text in the buffer
-      while (true) {
-        const idx = focusIndexRef.current;
-        const ayah = ayahsInRange[idx];
-        if (!ayah) break;
+      const res = await api.submitAttempt(sessionId, ayah.id, bufferForCheck);
+      setAyahResults((prev) => ({ ...prev, [ayah.id]: res }));
 
-        const bufferWords = bufferRef.current.split(/\s+/).filter(Boolean);
-        const bufferWordCount = bufferWords.length;
-        const expectedWordCount = ayah.words.length;
+      // Trim exactly the words the alignment actually consumed for this
+      // ayah — not a fixed expectedWordCount — since a "missed" expected
+      // word consumes zero transcript words, and an "added" word consumes
+      // one that isn't in ayah.words. Using the fixed count here is what
+      // let a single insertion/deletion anywhere upstream cascade into
+      // every ayah after it being checked against the wrong slice of buffer.
+      const consumedCount = res.results.filter((r) => r.status !== "missed").length;
+      bufferRef.current = bufferWords.slice(consumedCount).join(" ");
 
-        // If the buffer doesn't have enough words for the CURRENT focus ayah, 
-        // stop looping and wait for the next audio chunk.
-        if (bufferWordCount < expectedWordCount) {
-          break;
-        }
-
-        // Submit ONLY the text currently inside the buffer
-        const res = await api.submitAttempt(sessionId, ayah.id, bufferRef.current);
-        
-        // Update results state immediately for the UI
-        setAyahResults((prev) => ({ ...prev, [ayah.id]: res }));
-
-        // Calculate exactly how many words the alignment engine consumed
-        const consumedCount = res.results.filter((r) => r.status !== "missed").length;
-        
-        // Trim the consumed words out of the buffer cleanly
-        bufferRef.current = bufferWords.slice(consumedCount).join(" ");
-
-        // Advance the focus index pointers
-        if (idx + 1 < ayahsInRange.length) {
-          focusIndexRef.current = idx + 1;
-          setFocusIndex(idx + 1);
-          // Continue the loop to see if the remaining buffer satisfies the next ayah!
-        } else {
-          await finishUp();
-          break;
-        }
+      if (idx + 1 < ayahsInRange.length) {
+        setFocusIndex(idx + 1);
+      } else {
+        await finishUp();
       }
     } catch (e) {
-      // Log or handle individual failure without killing the loop capability
-      console.error("Ayah validation error:", e.message);
+      // If a single check fails, don't kill the whole session — just keep
+      // listening and try again once more speech comes in.
     } finally {
+      checkingRef.current = false;
       setChecking(false);
+      // New finalized speech arrived while this check was in flight (e.g.
+      // the reciter kept going without pausing) — re-run immediately
+      // instead of waiting for the *next* speech event, so a continuous
+      // reciter never has to stop to "unstick" the checker.
+      if (pendingRecheckRef.current) {
+        pendingRecheckRef.current = false;
+        maybeCheckFocusAyah();
+      }
     }
   }
 

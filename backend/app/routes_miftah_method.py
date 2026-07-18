@@ -124,7 +124,16 @@ def submit_attempt(
     accuracy = score_session(results)
 
     threshold = REPEAT_PASS_THRESHOLD if session.phase == "repeat" else FLUENCY_THRESHOLD
-    passed = accuracy >= threshold
+    met_threshold = accuracy >= threshold
+    # The 95% fluency gate (recall/cumulative phases) is intentionally not
+    # enforced as a block on advancement: with current speech-recognition
+    # accuracy, requiring 95% was blocking real progress more often than it
+    # was catching genuine mistakes — recitals that were actually correct
+    # were getting stuck because the STT mis-transcribed a word or two.
+    # `accuracy` is still computed and shown to the learner every attempt,
+    # it just no longer gates anything. The repeat phase's separate, much
+    # more lenient anti-skip check (REPEAT_PASS_THRESHOLD, 60%) is untouched.
+    passed = met_threshold if session.phase == "repeat" else True
 
     message = _apply_transition(db, session, current_ayah, accuracy, passed, current_user)
 
