@@ -25,6 +25,32 @@ _DAGGER_ALEF = "\u0670"   # superscript alef — represents a long "aa" that
 _ALEF_WASLA = "\u0671"    # connecting-hamza alef — always folds to a plain
                           # alef in ordinary spelling, no ambiguity here.
 _PLAIN_ALEF = "\u0627"
+_TATWEEL = "\u0640"       # elongation stroke — purely typographic (used to
+                          # stretch a letter, often paired with a dagger
+                          # alef, e.g. سَـٰنَ). Carries no sound of its own,
+                          # so it must be removed everywhere in the word, not
+                          # just trimmed off the ends — it was previously
+                          # only stripped at the boundaries, so any tatweel
+                          # sitting mid-word (very common in Uthmani script,
+                          # e.g. الْإِنسَـٰنَ) survived normalization and
+                          # silently broke the match against STT output.
+_HAMZA_ALEFS = "\u0623\u0625\u0622"  # أ إ آ — hamza/madda-on-alef forms.
+                          # Web Speech API (and STT generally) essentially
+                          # never reproduces the hamza seat and just writes
+                          # a plain alef, so إِنسَـٰنَ (reference) vs انسان
+                          # (recognized) mismatched even after tashkeel and
+                          # tatweel were both removed. Folding both sides to
+                          # plain alef removes that gap. This does mean two
+                          # reference words that differ ONLY by hamza seat
+                          # (rare) become indistinguishable from STT input —
+                          # an acceptable trade since STT can't tell them
+                          # apart either.
+_TEH_MARBUTA = "\u0629"   # ة — sounds identical to plain heh (ه) in pause
+                          # form, and STT reliably picks one or the other
+                          # inconsistently (e.g. نُّطْفَةٍ recognized as
+                          # نطفه). Folded to heh on both sides for the same
+                          # reason as the hamza-seat alefs above.
+_HEH = "\u0647"
 
 
 def _strip_tashkeel(word: str) -> str:
@@ -35,27 +61,39 @@ def _strip_tashkeel(word: str) -> str:
     return "".join(ch for ch in word if not is_diacritic(ch))
 
 
+def _fold_letter_variants(word: str) -> str:
+    cleaned = word.replace(_ALEF_WASLA, _PLAIN_ALEF)
+    for hamza_alef in _HAMZA_ALEFS:
+        cleaned = cleaned.replace(hamza_alef, _PLAIN_ALEF)
+    cleaned = cleaned.replace(_TEH_MARBUTA, _HEH)
+    return cleaned
+
+
 def _normalize(word: str) -> str:
-    """Normalize a recognized (STT) word: strip tashkeel, fold alef wasla to
-    a plain alef, drop dagger alef (STT output never contains either of
-    these specialized Quranic-typesetting characters in the first place, so
+    """Normalize a recognized (STT) word: strip tashkeel and tatweel, fold
+    alef wasla and hamza-seat alefs to a plain alef, drop dagger alef (STT
+    output never contains dagger alef or tatweel in the first place, so
     there's nothing to fold on this side beyond cleanup)."""
     cleaned = _strip_tashkeel(word)
-    cleaned = cleaned.replace(_ALEF_WASLA, _PLAIN_ALEF)
+    cleaned = cleaned.replace(_TATWEEL, "")
+    cleaned = _fold_letter_variants(cleaned)
     cleaned = cleaned.replace(_DAGGER_ALEF, "")
-    return cleaned.strip(" \u0640.,!?").lower()
+    return cleaned.strip(" .,!?").lower()
 
 
 def _normalize_variants(word: str) -> set[str]:
     """Normalize a *reference* (Uthmani) word to the set of spellings a
-    correct recitation could plausibly be transcribed as. Alef wasla always
-    folds to a plain alef (unambiguous). A dagger alef is ambiguous — some
-    words' standard spelling drops the long vowel entirely, others keep it
-    as a full alef — so both variants are accepted rather than guessing."""
+    correct recitation could plausibly be transcribed as. Tatweel is removed
+    everywhere (purely typographic, no sound). Alef wasla and hamza-seat
+    alefs always fold to a plain alef (STT doesn't distinguish them). A
+    dagger alef is ambiguous — some words' standard spelling drops the long
+    vowel entirely, others keep it as a full alef — so both variants are
+    accepted rather than guessing."""
     cleaned = _strip_tashkeel(word)
-    cleaned = cleaned.replace(_ALEF_WASLA, _PLAIN_ALEF)
-    dropped = cleaned.replace(_DAGGER_ALEF, "").strip(" \u0640.,!?").lower()
-    expanded = cleaned.replace(_DAGGER_ALEF, _PLAIN_ALEF).strip(" \u0640.,!?").lower()
+    cleaned = cleaned.replace(_TATWEEL, "")
+    cleaned = _fold_letter_variants(cleaned)
+    dropped = cleaned.replace(_DAGGER_ALEF, "").strip(" .,!?").lower()
+    expanded = cleaned.replace(_DAGGER_ALEF, _PLAIN_ALEF).strip(" .,!?").lower()
     return {dropped, expanded}
 
 
