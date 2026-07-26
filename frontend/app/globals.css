@@ -1,44 +1,51 @@
 /* -----------------------------------------------------------------------
-   Miftah — vibrant glass theme
-   A dark cosmic ground with three jewel-tone accents (emerald growth,
-   amethyst illumination, amber mastery) drifting as soft blurred orbs.
-   Every panel is frosted glass floating above that field, and glows
-   softly on hover — illumination reinterpreted through light, not ink.
+   Miftah — parchment & ink theme
+   A warm cream ground (paper, not screen) with deep forest green as the
+   primary ink and antique gold as the accent — the palette of an old
+   illuminated mushaf rebuilt for a browser. Most of the app lives on the
+   light parchment surface; a handful of deliberately contrasting panels
+   (the hero highlight, the About/goals section) sit on the deep green
+   "night" surface instead, the way an illuminated manuscript would use a
+   dark ground to set apart a single important page.
    Type: Space Grotesk (display) + Manrope (UI) + Amiri (Arabic).
    -------------------------------------------------------------------- */
 
 :root {
-  --void: #0a0f1e;
-  --void-deep: #060910;
-  --emerald: #2dd4a7;
-  --emerald-soft: #7ee8c9;
-  --violet: #a78bfa;
-  --violet-soft: #cabbfb;
-  --gold: #fbbf66;
-  --gold-soft: #ffd699;
-  --mist: #eaf2ef;
-  --mist-soft: #93a6a1;
-  --wrong: #ff8a80;
-  --glass: rgba(255, 255, 255, 0.055);
-  --glass-strong: rgba(255, 255, 255, 0.09);
-  --glass-border: rgba(255, 255, 255, 0.14);
+  --parchment: #f4efe2;
+  --parchment-deep: #ece4d2;
+  --paper: #fbf8f0;
+  --ink: #1c2b23;
+  --ink-soft: #5b6b60;
+  --forest: #16352b;
+  --forest-deep: #0e241c;
+  --forest-soft: #2f5747;
+  --gold: #b8862f;
+  --gold-soft: #dcae5b;
+  --gold-pale: #f0d8a3;
+  --wrong: #b23b3b;
+  --emerald-soft: #2f6b52;
+  --violet: #6a5a9e;
+  --violet-soft: #8f7fc4;
+  --glass: rgba(255, 255, 255, 0.55);
+  --glass-strong: rgba(255, 255, 255, 0.82);
+  --glass-border: rgba(28, 43, 35, 0.14);
   --radius: 16px;
   --radius-sm: 10px;
 
   /* legacy token aliases so any untouched inline styles still resolve */
-  --parchment: var(--void);
-  --parchment-deep: var(--glass-border);
-  --ink: var(--mist);
-  --ink-soft: var(--mist-soft);
+  --mist: var(--ink);
+  --mist-soft: var(--ink-soft);
+  --void: var(--parchment);
   --brass: var(--gold);
   --brass-light: var(--gold-soft);
   --maroon: var(--wrong);
-  --correct: var(--emerald);
+  --emerald: var(--forest);
+  --correct: var(--emerald-soft);
   --missed: var(--gold);
   --added: var(--violet);
 }
 html {
-  color-scheme: dark;
+  color-scheme: light;
 }
 * {
   box-sizing: border-box;
@@ -48,8 +55,8 @@ html,
 body {
   margin: 0;
   padding: 0;
-  background: var(--void);
-  color: var(--mist);
+  background: var(--parchment);
+  color: var(--ink);
   font-family: "Manrope", -apple-system, sans-serif;
   min-height: 100%;
 }
@@ -63,7 +70,7 @@ body {
   overflow-x: hidden;
 }
 
-/* ------------------------------ Orb field -------------------------------- */
+/* ------------------------------ Background -------------------------------- */
 
 .bg-orbs {
   position: fixed;
@@ -71,62 +78,17 @@ body {
   z-index: -1;
   overflow: hidden;
   pointer-events: none;
-  background: radial-gradient(ellipse at top, #0d1526 0%, var(--void-deep) 70%);
+  background:
+    radial-gradient(ellipse 700px 500px at 10% -10%, rgba(184, 134, 47, 0.12), transparent 60%),
+    radial-gradient(ellipse 800px 600px at 110% 10%, rgba(22, 53, 43, 0.08), transparent 60%),
+    var(--parchment);
 }
 
 .bg-orbs span {
-  position: absolute;
-  border-radius: 50%;
-  filter: blur(90px);
-  opacity: 0.55;
-}
-
-.bg-orbs span:nth-child(1) {
-  width: 560px;
-  height: 560px;
-  top: -160px;
-  left: -120px;
-  background: radial-gradient(circle, var(--emerald), transparent 70%);
-  animation: orb-drift-a 26s ease-in-out infinite;
-}
-
-.bg-orbs span:nth-child(2) {
-  width: 620px;
-  height: 620px;
-  top: 20%;
-  right: -220px;
-  background: radial-gradient(circle, var(--violet), transparent 70%);
-  animation: orb-drift-b 32s ease-in-out infinite;
-}
-
-.bg-orbs span:nth-child(3) {
-  width: 480px;
-  height: 480px;
-  bottom: -200px;
-  left: 30%;
-  background: radial-gradient(circle, var(--gold), transparent 70%);
-  animation: orb-drift-c 30s ease-in-out infinite;
-}
-
-@keyframes orb-drift-a {
-  0%, 100% { transform: translate(0, 0) scale(1); }
-  50% { transform: translate(60px, 40px) scale(1.08); }
-}
-
-@keyframes orb-drift-b {
-  0%, 100% { transform: translate(0, 0) scale(1); }
-  50% { transform: translate(-50px, 60px) scale(1.05); }
-}
-
-@keyframes orb-drift-c {
-  0%, 100% { transform: translate(0, 0) scale(1); }
-  50% { transform: translate(40px, -50px) scale(1.1); }
+  display: none;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .bg-orbs span {
-    animation: none !important;
-  }
   * {
     animation-duration: 0.001ms !important;
     transition-duration: 0.001ms !important;
@@ -142,32 +104,25 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 14px 28px;
-  margin: 16px 20px 0;
-  border-radius: 999px;
-  background: var(--glass);
-  border: 1px solid var(--glass-border);
-  backdrop-filter: blur(18px) saturate(160%);
-  -webkit-backdrop-filter: blur(18px) saturate(160%);
-  transition: background 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease;
+  padding: 16px 28px;
+  background: var(--glass-strong);
+  border-bottom: 1px solid var(--glass-border);
+  backdrop-filter: blur(14px) saturate(140%);
+  -webkit-backdrop-filter: blur(14px) saturate(140%);
+  transition: box-shadow 0.25s ease;
 }
 
 .nav-scrolled {
-  background: var(--glass-strong);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
-  border-color: rgba(255, 255, 255, 0.22);
+  box-shadow: 0 4px 24px rgba(28, 43, 35, 0.08);
 }
 
 .nav-brand {
   font-family: "Space Grotesk", serif;
   font-size: 22px;
   font-weight: 700;
-  color: var(--mist);
+  color: var(--forest);
   letter-spacing: 0.01em;
   text-decoration: none;
-  background: linear-gradient(120deg, var(--mist) 40%, var(--emerald-soft));
-  -webkit-background-clip: text;
-  background-clip: text;
 }
 
 .nav-links {
@@ -185,10 +140,11 @@ body {
   background: transparent;
   border: 1px solid var(--glass-border);
   border-radius: 10px;
-  color: var(--mist);
+  color: var(--forest);
   font-size: 18px;
   line-height: 1;
   flex-shrink: 0;
+  box-shadow: none;
 }
 
 /* Below this width the link row no longer fits next to the brand without
@@ -197,7 +153,6 @@ body {
 @media (max-width: 760px) {
   .nav {
     padding: 12px 16px;
-    margin: 12px 12px 0;
   }
 
   .nav-brand {
@@ -211,19 +166,16 @@ body {
   .nav-links {
     display: none;
     position: absolute;
-    top: calc(100% + 10px);
+    top: 100%;
     left: 0;
     right: 0;
     flex-direction: column;
     align-items: stretch;
     gap: 4px;
     padding: 10px;
-    background: var(--glass-strong);
-    border: 1px solid var(--glass-border);
-    border-radius: var(--radius);
-    backdrop-filter: blur(18px) saturate(160%);
-    -webkit-backdrop-filter: blur(18px) saturate(160%);
-    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.4);
+    background: var(--paper);
+    border-bottom: 1px solid var(--glass-border);
+    box-shadow: 0 16px 40px rgba(28, 43, 35, 0.12);
     z-index: 60;
   }
 
@@ -241,7 +193,7 @@ body {
 
   .nav-links a:hover,
   .nav-link:hover {
-    background: var(--glass);
+    background: var(--parchment-deep);
   }
 
   /* The animated underline is meaningless once links stack vertically. */
@@ -256,7 +208,7 @@ body {
 }
 
 .nav-links a {
-  color: var(--mist-soft);
+  color: var(--ink-soft);
   text-decoration: none;
   font-size: 14px;
   font-weight: 600;
@@ -264,12 +216,12 @@ body {
 
 .nav-links a:hover,
 .nav-links a:focus-visible {
-  color: var(--gold-soft);
+  color: var(--forest);
 }
 
 .nav-link {
   position: relative;
-  color: var(--mist-soft);
+  color: var(--ink-soft);
   text-decoration: none;
   font-size: 14px;
   font-weight: 600;
@@ -279,7 +231,7 @@ body {
 
 .nav-link:hover,
 .nav-link:focus-visible {
-  color: var(--gold-soft);
+  color: var(--forest);
 }
 
 .nav-underline {
@@ -289,7 +241,7 @@ body {
   bottom: -6px;
   height: 2px;
   border-radius: 999px;
-  background: linear-gradient(90deg, var(--emerald), var(--gold));
+  background: var(--gold);
 }
 
 /* ------------------------------- Layout --------------------------------- */
@@ -307,33 +259,28 @@ h1.page-title {
   font-size: 38px;
   font-weight: 700;
   margin: 0 0 8px;
-  background: linear-gradient(120deg, var(--mist), var(--violet-soft) 60%, var(--gold-soft));
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
+  color: var(--forest);
 }
 
 .page-subtitle {
-  color: var(--mist-soft);
+  color: var(--ink-soft);
   margin: 0 0 32px;
   font-size: 16px;
 }
 
 /* --------------------------- Illuminated card ---------------------------
-   Signature element: the manuscript-illumination idea, reborn as light.
-   A glass panel with a soft conic glow that sweeps in on hover, standing
-   in for the old ink-and-brass corner flourishes.
+   Signature element carried over from the previous theme, re-skinned: a
+   paper card with a thin gold rule that brightens on hover, standing in
+   for the old glow — illumination as ink and gold leaf, not neon.
    -------------------------------------------------------------------- */
 
 .illuminated-card {
   position: relative;
-  background: var(--glass-strong);
+  background: var(--paper);
   border: 1px solid var(--glass-border);
   border-radius: var(--radius);
   padding: 36px 32px;
   margin-bottom: 24px;
-  backdrop-filter: blur(16px) saturate(150%);
-  -webkit-backdrop-filter: blur(16px) saturate(150%);
   overflow: hidden;
   transition: transform 0.3s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.3s ease, border-color 0.3s ease;
 }
@@ -341,22 +288,23 @@ h1.page-title {
 .illuminated-card::before {
   content: "";
   position: absolute;
-  inset: -2px;
-  background: conic-gradient(from 0deg, var(--emerald), var(--violet), var(--gold), var(--emerald));
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, var(--gold), var(--forest-soft));
   opacity: 0;
-  z-index: -1;
-  filter: blur(18px);
   transition: opacity 0.35s ease;
 }
 
 .illuminated-card:hover {
   transform: translateY(-3px);
-  border-color: rgba(255, 255, 255, 0.28);
-  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.4);
+  border-color: rgba(28, 43, 35, 0.22);
+  box-shadow: 0 16px 40px rgba(28, 43, 35, 0.1);
 }
 
 .illuminated-card:hover::before {
-  opacity: 0.35;
+  opacity: 1;
 }
 
 .ayah-arabic {
@@ -365,7 +313,7 @@ h1.page-title {
   line-height: 2.1;
   text-align: right;
   direction: rtl;
-  color: var(--mist);
+  color: var(--ink);
 }
 
 .ayah-word {
@@ -385,34 +333,32 @@ h1.page-title {
 }
 
 .ayah-word.missed {
-  color: var(--gold-soft);
-  opacity: 0.65;
+  color: var(--gold);
+  opacity: 0.75;
 }
 
 .ayah-word.active {
-  background: rgba(251, 191, 102, 0.28);
+  background: rgba(184, 134, 47, 0.18);
 }
 
 /* -------------------------------- Cards --------------------------------- */
 
 .card {
   position: relative;
-  background: var(--glass);
+  background: var(--glass-strong);
   border: 1px solid var(--glass-border);
   border-radius: var(--radius-sm);
   padding: 20px 24px;
   margin-bottom: 16px;
-  backdrop-filter: blur(14px) saturate(140%);
-  -webkit-backdrop-filter: blur(14px) saturate(140%);
   transition: transform 0.22s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.22s ease, border-color 0.22s ease, background 0.22s ease;
   will-change: transform;
 }
 
 .card:hover {
   transform: translateY(-3px);
-  background: var(--glass-strong);
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
-  border-color: rgba(255, 255, 255, 0.24);
+  background: var(--paper);
+  box-shadow: 0 12px 32px rgba(28, 43, 35, 0.1);
+  border-color: rgba(28, 43, 35, 0.22);
 }
 
 /* --------------------------- Recite control bar -------------------------
@@ -434,6 +380,7 @@ h1.page-title {
   justify-content: space-between;
   gap: 16px;
   z-index: 40;
+  box-shadow: 0 12px 32px rgba(28, 43, 35, 0.14);
 }
 
 .recite-controls-info {
@@ -477,11 +424,11 @@ h1.page-title {
   margin: 0 0 4px;
   font-size: 17px;
   font-family: "Space Grotesk", serif;
-  color: var(--mist);
+  color: var(--forest);
 }
 
 .muted {
-  color: var(--mist-soft);
+  color: var(--ink-soft);
   font-size: 14px;
 }
 
@@ -492,7 +439,7 @@ label {
   font-size: 13px;
   font-weight: 700;
   margin-bottom: 6px;
-  color: var(--mist-soft);
+  color: var(--ink-soft);
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
@@ -508,16 +455,16 @@ textarea {
   padding: 12px 14px;
   border: 1px solid var(--glass-border);
   border-radius: var(--radius-sm);
-  background: rgba(255, 255, 255, 0.045);
+  background: var(--paper);
   font-size: 15px;
   margin-bottom: 18px;
   font-family: inherit;
-  color: var(--mist);
+  color: var(--ink);
 }
 
 input::placeholder,
 textarea::placeholder {
-  color: rgba(234, 242, 239, 0.35);
+  color: rgba(28, 43, 35, 0.35);
 }
 
 input:focus-visible,
@@ -536,16 +483,16 @@ button {
   padding: 11px 22px;
   border-radius: 999px;
   border: none;
-  background: linear-gradient(120deg, var(--emerald), var(--violet));
-  color: #0a0f1e;
+  background: var(--forest);
+  color: var(--parchment);
   cursor: pointer;
   transition: transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.15s ease, opacity 0.15s ease, filter 0.2s ease;
 }
 
 button:hover:not(:disabled) {
   transform: translateY(-1px) scale(1.03);
-  filter: brightness(1.08);
-  box-shadow: 0 8px 22px rgba(45, 212, 167, 0.28);
+  filter: brightness(1.1);
+  box-shadow: 0 8px 22px rgba(22, 53, 43, 0.25);
 }
 
 button:active:not(:disabled) {
@@ -555,13 +502,13 @@ button:active:not(:disabled) {
 
 button.secondary {
   background: transparent;
-  color: var(--mist);
+  color: var(--forest);
   border: 1px solid var(--glass-border);
 }
 
 button.danger {
-  background: linear-gradient(120deg, var(--wrong), #ff5a75);
-  color: #1a0a0a;
+  background: var(--wrong);
+  color: var(--paper);
 }
 
 button:disabled {
@@ -570,9 +517,9 @@ button:disabled {
 }
 
 .error-banner {
-  background: rgba(255, 138, 128, 0.12);
+  background: rgba(178, 59, 59, 0.08);
   border: 1px solid var(--wrong);
-  color: #ffb3ac;
+  color: #8a2d2d;
   padding: 10px 14px;
   border-radius: var(--radius-sm);
   margin-bottom: 18px;
@@ -580,13 +527,59 @@ button:disabled {
 }
 
 .success-banner {
-  background: rgba(45, 212, 167, 0.12);
-  border: 1px solid var(--emerald);
-  color: var(--emerald-soft);
+  background: rgba(47, 107, 82, 0.1);
+  border: 1px solid var(--emerald-soft);
+  color: var(--forest);
   padding: 10px 14px;
   border-radius: var(--radius-sm);
   margin-bottom: 18px;
   font-size: 14px;
+}
+
+/* Registration nudge for guests — same family as the banners above but its
+   own tone (gold, not red/green) since it isn't reporting success or
+   failure, just inviting an action. */
+.notice-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  background: rgba(184, 134, 47, 0.1);
+  border: 1px solid rgba(184, 134, 47, 0.35);
+  color: var(--forest);
+  padding: 14px 18px;
+  border-radius: var(--radius-sm);
+  margin-bottom: 24px;
+  font-size: 14px;
+}
+
+.notice-banner strong {
+  color: var(--forest);
+}
+
+.notice-banner-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.notice-banner-dismiss {
+  background: transparent;
+  border: none;
+  color: var(--ink-soft);
+  font-size: 18px;
+  line-height: 1;
+  padding: 4px 8px;
+  box-shadow: none;
+}
+
+.notice-banner-dismiss:hover {
+  transform: none;
+  filter: none;
+  box-shadow: none;
+  color: var(--forest);
 }
 
 .pill {
@@ -598,18 +591,18 @@ button:disabled {
 }
 
 .pill.status-new {
-  background: rgba(255, 255, 255, 0.08);
-  color: var(--mist-soft);
+  background: rgba(28, 43, 35, 0.06);
+  color: var(--ink-soft);
 }
 
 .pill.status-learning {
-  background: rgba(251, 191, 102, 0.18);
-  color: var(--gold-soft);
+  background: rgba(184, 134, 47, 0.16);
+  color: var(--gold);
 }
 
 .pill.status-memorized {
-  background: rgba(45, 212, 167, 0.18);
-  color: var(--emerald-soft);
+  background: rgba(47, 107, 82, 0.16);
+  color: var(--forest);
 }
 
 /* --------------------------- Miftah Method ------------------------------- */
@@ -622,17 +615,17 @@ button:disabled {
   padding: 14px 20px;
   border-radius: var(--radius-sm);
   margin-bottom: 20px;
-  background: rgba(251, 191, 102, 0.14);
-  border: 1px solid rgba(251, 191, 102, 0.3);
-  color: var(--gold-soft);
+  background: rgba(184, 134, 47, 0.12);
+  border: 1px solid rgba(184, 134, 47, 0.3);
+  color: var(--gold);
   font-weight: 700;
 }
 
 .phase-banner.phase-recall,
 .phase-banner.phase-cumulative {
-  background: rgba(167, 139, 250, 0.14);
-  border-color: rgba(167, 139, 250, 0.3);
-  color: var(--violet-soft);
+  background: rgba(106, 90, 158, 0.1);
+  border-color: rgba(106, 90, 158, 0.3);
+  color: var(--violet);
 }
 
 .repeat-dots {
@@ -657,7 +650,7 @@ button:disabled {
 .hidden-ayah-placeholder {
   text-align: center;
   padding: 40px 0;
-  color: var(--mist-soft);
+  color: var(--ink-soft);
   font-style: italic;
 }
 
@@ -684,7 +677,7 @@ button:disabled {
   padding: 10px 4px;
   margin-right: 24px;
   font-weight: 700;
-  color: var(--mist-soft);
+  color: var(--ink-soft);
   cursor: pointer;
   box-shadow: none;
 }
@@ -696,7 +689,7 @@ button:disabled {
 }
 
 .tab-button.active {
-  color: var(--mist);
+  color: var(--forest);
   border-bottom-color: var(--gold);
 }
 
@@ -716,7 +709,7 @@ button:disabled {
 .progress-bar-track {
   width: 100%;
   height: 8px;
-  background: rgba(255, 255, 255, 0.08);
+  background: rgba(28, 43, 35, 0.08);
   border-radius: 999px;
   overflow: hidden;
   margin: 8px 0 4px;
@@ -724,7 +717,7 @@ button:disabled {
 
 .progress-bar-fill {
   height: 100%;
-  background: linear-gradient(90deg, var(--emerald), var(--gold));
+  background: linear-gradient(90deg, var(--forest), var(--gold));
   border-radius: 999px;
 }
 
@@ -751,4 +744,93 @@ button:disabled {
 .inline-form input {
   margin-bottom: 0;
   flex: 1;
+}
+
+/* ------------------------------ Dark panels --------------------------------
+   Deliberately different surface for the home hero and the About/goals
+   section — deep forest green instead of parchment, cream ink instead of
+   dark ink, gold stays gold. Used sparingly, as contrast, not a second
+   theme to maintain everywhere.
+   -------------------------------------------------------------------- */
+
+.dark-section {
+  background: var(--forest-deep);
+  color: var(--parchment);
+  border-radius: var(--radius);
+  padding: 56px 40px;
+  margin: 56px 0;
+  position: relative;
+  overflow: hidden;
+}
+
+.dark-section::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse 600px 400px at 90% -10%, rgba(184, 134, 47, 0.16), transparent 60%);
+  pointer-events: none;
+}
+
+.dark-section h2 {
+  font-family: "Space Grotesk", serif;
+  color: var(--parchment);
+  font-size: 28px;
+  margin: 0 0 12px;
+}
+
+.dark-section .muted {
+  color: rgba(244, 239, 226, 0.68);
+}
+
+.dark-section a {
+  color: var(--gold-soft);
+}
+
+.dark-section .eyebrow {
+  color: var(--gold-soft);
+}
+
+.hero-panel {
+  background: var(--forest-deep);
+  color: var(--parchment);
+  border-radius: var(--radius);
+  padding: 32px;
+  position: relative;
+  overflow: hidden;
+}
+
+.hero-panel::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse 500px 300px at 100% 0%, rgba(184, 134, 47, 0.18), transparent 60%);
+  pointer-events: none;
+}
+
+.hero-panel .muted {
+  color: rgba(244, 239, 226, 0.68);
+}
+
+.eyebrow {
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--gold);
+  margin: 0 0 10px;
+}
+
+/* ------------------------------ Shortcut grid ------------------------------ */
+
+.shortcut-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 16px;
+  margin: 28px 0 40px;
+}
+
+.shortcut-card {
+  display: block;
+  text-decoration: none;
+  color: inherit;
 }

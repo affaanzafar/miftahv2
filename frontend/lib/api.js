@@ -54,6 +54,12 @@ export const api = {
       method: "POST",
       body: { ayah_id, recognized_text },
     }),
+  guestCheckAttempt: (ayah_id, recognized_text) =>
+    request("/recitation/guest-check", {
+      method: "POST",
+      body: { ayah_id, recognized_text },
+      auth: false,
+    }),
   completeSession: (sessionId) =>
     request(`/recitation/sessions/${sessionId}/complete`, { method: "POST" }),
 

@@ -2,8 +2,9 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
 import Nav from "../../../components/Nav";
-import { api } from "../../../lib/api";
+import { api, getToken } from "../../../lib/api";
 import { useSpeechRecognition } from "../../../lib/useSpeechRecognition";
 
 /**
@@ -24,6 +25,9 @@ export default function RecitePage() {
   const { surahId } = useParams();
   const router = useRouter();
   const searchParams = useSearchParams();
+
+  const loggedIn = typeof window !== "undefined" && !!getToken();
+  const GUEST_SESSION = "guest";
 
   const isReview = searchParams.get("review") === "1";
   const rangeStart = searchParams.get("start") ? Number(searchParams.get("start")) : null;
@@ -77,6 +81,16 @@ export default function RecitePage() {
 
   async function handleStart() {
     if (!surah || ayahsInRange.length === 0) return;
+    if (!loggedIn) {
+      // No account: skip session creation altogether. Correction still
+      // runs live via the guest-check endpoint, nothing is persisted.
+      setSessionId(GUEST_SESSION);
+      setFocusIndex(0);
+      bufferRef.current = "";
+      lastProcessedFinalRef.current = "";
+      start();
+      return;
+    }
     try {
       const { session_id } = await api.startSession(
         surah.id,
@@ -160,7 +174,9 @@ export default function RecitePage() {
     checkingRef.current = true;
     setChecking(true);
     try {
-      const res = await api.submitAttempt(sessionId, ayah.id, bufferForCheck);
+      const res = loggedIn
+        ? await api.submitAttempt(sessionId, ayah.id, bufferForCheck)
+        : await api.guestCheckAttempt(ayah.id, bufferForCheck);
       setAyahResults((prev) => ({ ...prev, [ayah.id]: res }));
 
       // Trim exactly the words the alignment actually consumed for this
@@ -197,6 +213,16 @@ export default function RecitePage() {
   async function finishUp() {
     if (settleTimerRef.current) clearTimeout(settleTimerRef.current);
     stop();
+    if (!loggedIn) {
+      // No session on the backend to complete — the accuracy we show is
+      // computed from what's already been scored client-side in ayahResults.
+      const scored = Object.values(ayahResults);
+      const avgAccuracy = scored.length
+        ? Math.round(scored.reduce((sum, r) => sum + r.ayah_accuracy, 0) / scored.length)
+        : 0;
+      setSessionSummary({ session_id: GUEST_SESSION, accuracy_score: avgAccuracy, completed_at: null });
+      return;
+    }
     try {
       const result = await api.completeSession(sessionId);
       setSessionSummary(result);
@@ -277,7 +303,15 @@ export default function RecitePage() {
               {sessionSummary.accuracy_score ?? avgAccuracy}%
             </p>
           </div>
-          {appliedToHifz ? (
+          {!loggedIn ? (
+            <p className="muted">
+              This was practiced as a guest — nothing was saved.{" "}
+              <Link href="/register" style={{ color: "var(--gold)" }}>
+                Create a free account
+              </Link>{" "}
+              to track accuracy over time and build your hifz.
+            </p>
+          ) : appliedToHifz ? (
             <p className="success-banner">Applied to your hifz schedule.</p>
           ) : (
             <button onClick={handleApplyToHifz}>Apply to hifz schedule</button>
@@ -310,6 +344,19 @@ export default function RecitePage() {
           <div className="error-banner">
             Your browser doesn't support live speech recognition (Chrome or Edge work best). You can
             still read the surah below.
+          </div>
+        )}
+
+        {!sessionId && !loggedIn && (
+          <div className="card" style={{ marginBottom: 4 }}>
+            <p className="muted" style={{ margin: 0 }}>
+              You're not signed in — you can still recite and get live correction, but nothing
+              will be saved.{" "}
+              <Link href="/register" style={{ color: "var(--gold)" }}>
+                Create a free account
+              </Link>{" "}
+              to track your progress.
+            </p>
           </div>
         )}
 

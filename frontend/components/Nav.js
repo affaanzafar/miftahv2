@@ -7,7 +7,7 @@ import { motion } from "framer-motion";
 import { clearToken, getToken } from "../lib/api";
 
 const LINKS = [
-  { href: "/", label: "Surahs" },
+  { href: "/", label: "Home" },
   { href: "/hifz", label: "Hifz" },
   { href: "/miftah-method", label: "Miftah Method" },
   { href: "/circles", label: "Circles" },
@@ -78,9 +78,14 @@ export default function Nav() {
             Log out
           </button>
         ) : (
-          <Link href="/login" onClick={() => setMenuOpen(false)}>
-            Log in
-          </Link>
+          <>
+            <Link href="/login" className="nav-link" onClick={() => setMenuOpen(false)}>
+              Log in
+            </Link>
+            <Link href="/register" onClick={() => setMenuOpen(false)}>
+              <button type="button">Sign up</button>
+            </Link>
+          </>
         )}
       </div>
     </nav>

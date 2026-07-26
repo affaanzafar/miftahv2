@@ -18,6 +18,33 @@ from app.routes_auth import get_current_user
 router = APIRouter(prefix="/recitation", tags=["recitation"])
 
 
+@router.post("/guest-check", response_model=SubmitAttemptResponse)
+def guest_check_attempt(payload: SubmitAttemptRequest, db: Session = Depends(get_db)):
+    """
+    Same scoring as /sessions/{id}/attempts, minus the account: no session is
+    created, nothing is written to word_attempts, nothing feeds hifz or
+    spaced repetition. This is what lets someone recite and get live
+    word-by-word correction before ever registering — the trade-off is that
+    none of it is saved, which the frontend should make clear to the user.
+    """
+    ayah = db.query(Ayah).filter(Ayah.id == payload.ayah_id).first()
+    if not ayah:
+        raise HTTPException(status_code=404, detail="Ayah not found")
+
+    words = db.query(Word).filter(Word.ayah_id == ayah.id).order_by(Word.position).all()
+    reference_words = [w.text_uthmani for w in words] or ayah.text_uthmani.split()
+    recognized_words = payload.recognized_text.split()
+
+    results = align_words(reference_words, recognized_words)
+    ayah_accuracy = score_session(results)
+
+    return SubmitAttemptResponse(
+        ayah_id=ayah.id,
+        results=[WordResultOut(**vars(r)) for r in results],
+        ayah_accuracy=ayah_accuracy,
+    )
+
+
 @router.post("/sessions", status_code=201)
 def start_session(
     payload: StartSessionRequest,
