@@ -15,6 +15,7 @@ export default function MiftahMethodPage() {
   const [surahId, setSurahId] = useState("");
   const [startAyah, setStartAyah] = useState(1);
   const [endAyah, setEndAyah] = useState(3);
+  const [skipRepeat, setSkipRepeat] = useState(false);
 
   useEffect(() => {
     api.listSurahs().then(setSurahs).catch((e) => setError(e.message));
@@ -29,7 +30,7 @@ export default function MiftahMethodPage() {
     setError("");
     setLoading(true);
     try {
-      const session = await api.startMiftahMethod(Number(surahId), Number(startAyah), Number(endAyah));
+      const session = await api.startMiftahMethod(Number(surahId), Number(startAyah), Number(endAyah), skipRepeat);
       router.push(`/miftah-method/session/${session.id}`);
     } catch (err) {
       setError(err.message);
@@ -122,6 +123,20 @@ export default function MiftahMethodPage() {
           />
           <p className="muted" style={{ marginTop: 4, marginBottom: 18 }}>
             Start with a small range — 3 to 5 ayahs works well while you get used to the method.
+          </p>
+
+          <label style={{ display: "flex", alignItems: "center", gap: 8, textTransform: "none", fontSize: 14, fontWeight: 600, color: "var(--ink)" }}>
+            <input
+              type="checkbox"
+              checked={skipRepeat}
+              onChange={(e) => setSkipRepeat(e.target.checked)}
+              style={{ width: "auto", margin: 0 }}
+            />
+            Recite from memory only — skip the 4x repeat step
+          </label>
+          <p className="muted" style={{ marginTop: 4, marginBottom: 18 }}>
+            For testing what you already know rather than learning it fresh: every ayah starts
+            hidden, straight into recall.
           </p>
 
           <button type="submit" disabled={loading || !surahId}>

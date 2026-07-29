@@ -71,6 +71,8 @@ export const api = {
   createGoal: (payload) => request("/hifz/goals", { method: "POST", body: payload }),
   listGoals: () => request("/hifz/goals"),
   deleteGoal: (goalId) => request(`/hifz/goals/${goalId}`, { method: "DELETE" }),
+  setGoalCompletion: (goalId, is_completed) =>
+    request(`/hifz/goals/${goalId}/completion`, { method: "PATCH", body: { is_completed } }),
 
   listCircles: () => request("/community/circles"),
   discoverCircles: (q = "") => request(`/community/circles/discover${q ? `?q=${encodeURIComponent(q)}` : ""}`),
@@ -98,10 +100,10 @@ export const api = {
   listFollowers: (userId) => request(`/social/users/${userId}/followers`),
   listFollowing: (userId) => request(`/social/users/${userId}/following`),
 
-  startMiftahMethod: (surah_id, start_ayah_number, end_ayah_number) =>
+  startMiftahMethod: (surah_id, start_ayah_number, end_ayah_number, skip_repeat = false) =>
     request("/miftah-method/sessions", {
       method: "POST",
-      body: { surah_id, start_ayah_number, end_ayah_number },
+      body: { surah_id, start_ayah_number, end_ayah_number, skip_repeat },
     }),
   getMiftahMethodSession: (sessionId) => request(`/miftah-method/sessions/${sessionId}`),
   listMiftahMethodSessions: () => request("/miftah-method/sessions"),

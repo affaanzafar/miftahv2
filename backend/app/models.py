@@ -185,6 +185,18 @@ class Goal(Base):
     target_date = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
+    # Custom ayah-range goals: pick a specific start..end within
+    # target_surah_id rather than the whole surah/juz. When set, progress
+    # isn't auto-computed from memorization status — it's plain pending
+    # until the user marks it done themselves, which is the point: a goal
+    # you set for yourself, not one the system grades.
+    start_ayah_number = Column(Integer, nullable=True)
+    end_ayah_number = Column(Integer, nullable=True)
+    # "memorization" (default, back-compat with existing goals) | "revision"
+    goal_type = Column(String, nullable=False, default="memorization")
+    is_completed = Column(Boolean, default=False)
+    completed_at = Column(DateTime, nullable=True)
+
 
 # ---------------------------------------------------------------------------
 # Miftah Method: guided incremental + cumulative memorization
@@ -221,6 +233,11 @@ class MiftahMethodSession(Base):
     phase = Column(String, default="repeat")  # "repeat" | "recall" | "cumulative"
     repeat_count = Column(Integer, default=0)  # completed read-alouds (0-4) for current ayah
     attempt_count = Column(Integer, default=0)  # attempts in the current recall/cumulative loop
+    # When true, every ayah in this session starts straight in "recall"
+    # (hidden, from memory) — the 4x visible-repeat step is skipped
+    # entirely. For testing what's already memorized rather than learning
+    # it fresh. Off by default so the guided method is unchanged.
+    skip_repeat = Column(Boolean, default=False)
 
     status = Column(String, default="active")  # "active" | "completed"
     created_at = Column(DateTime, default=datetime.utcnow)

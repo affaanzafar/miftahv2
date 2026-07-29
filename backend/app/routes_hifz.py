@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models import MemorizationProgress, RecitationSession, Goal, User, Ayah, Surah
-from app.schemas import ProgressOut, DueGroupOut, GoalCreate, GoalOut
+from app.schemas import ProgressOut, DueGroupOut, GoalCreate, GoalOut, GoalCompletionUpdate
 from app.routes_auth import get_current_user
 from app.spaced_repetition import sm2_update, accuracy_to_quality
 
@@ -185,6 +185,9 @@ def create_goal(
         target_surah_id=payload.target_surah_id,
         target_juz=payload.target_juz,
         target_date=datetime.fromisoformat(payload.target_date) if payload.target_date else None,
+        start_ayah_number=payload.start_ayah_number,
+        end_ayah_number=payload.end_ayah_number,
+        goal_type=payload.goal_type,
     )
     db.add(goal)
     db.commit()
@@ -214,6 +217,29 @@ def delete_goal(
     db.commit()
 
 
+@router.patch("/goals/{goal_id}/completion", response_model=GoalOut)
+def set_goal_completion(
+    goal_id: str,
+    payload: GoalCompletionUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Manually mark a custom ayah-range or revision goal pending/done. This is
+    the only way those goals' progress changes — unlike whole-surah/juz
+    goals, there's no memorization-status signal to compute it from, it's
+    just what the user says.
+    """
+    goal = db.query(Goal).filter(Goal.id == goal_id, Goal.user_id == current_user.id).first()
+    if not goal:
+        raise HTTPException(status_code=404, detail="Goal not found")
+    goal.is_completed = payload.is_completed
+    goal.completed_at = datetime.utcnow() if payload.is_completed else None
+    db.commit()
+    db.refresh(goal)
+    return _to_goal_out(goal, db, current_user)
+
+
 def _to_progress_out(row: MemorizationProgress, db: Session) -> ProgressOut:
     ayah = db.query(Ayah).filter(Ayah.id == row.ayah_id).first()
     surah = db.query(Surah).filter(Surah.id == ayah.surah_id).first() if ayah else None
@@ -231,8 +257,10 @@ def _to_progress_out(row: MemorizationProgress, db: Session) -> ProgressOut:
 
 
 def _to_goal_out(goal: Goal, db: Session, current_user: User) -> GoalOut:
-    progress_percent = 0
-    if goal.target_surah_id:
+    progress_percent = 100 if goal.is_completed else 0
+    if goal.start_ayah_number is None and goal.target_surah_id:
+        # Whole-surah/juz goal (the original kind): progress is derived
+        # from actual memorization status, not marked by hand.
         total = db.query(Ayah).filter(Ayah.surah_id == goal.target_surah_id).count()
         if total:
             target_ayah_ids = {
@@ -248,11 +276,18 @@ def _to_goal_out(goal: Goal, db: Session, current_user: User) -> GoalOut:
                 .count()
             )
             progress_percent = round(100 * memorized / total)
+    # Custom ayah-range goals (start_ayah_number set) always use the manual
+    # is_completed flag above instead — see set_goal_completion.
     return GoalOut(
         id=goal.id,
         title=goal.title,
         target_surah_id=goal.target_surah_id,
         target_juz=goal.target_juz,
         target_date=goal.target_date.isoformat() if goal.target_date else None,
+        start_ayah_number=goal.start_ayah_number,
+        end_ayah_number=goal.end_ayah_number,
+        goal_type=goal.goal_type,
+        is_completed=goal.is_completed,
+        completed_at=goal.completed_at.isoformat() if goal.completed_at else None,
         progress_percent=progress_percent,
     )

@@ -45,7 +45,10 @@ router = APIRouter(prefix="/miftah-method", tags=["miftah-method"])
 
 REPEAT_REQUIRED = 4
 REPEAT_PASS_THRESHOLD = 60   # lenient — text is visible, this step just confirms it was recited
-FLUENCY_THRESHOLD = 95       # strict — this is the "fluent by memory" bar
+FLUENCY_THRESHOLD = 80       # strict — this is the "fluent by memory" bar, enforced for
+                             # both the recall and cumulative phases (reciting without the
+                             # ayah on screen). The free-form /recite flow has no such gate
+                             # at all — it just reports accuracy — this is Miftah Method-only.
 
 
 @router.post("/sessions", response_model=MiftahMethodSessionDetailOut, status_code=201)
@@ -67,9 +70,10 @@ def start_session(
         start_ayah_number=payload.start_ayah_number,
         end_ayah_number=payload.end_ayah_number,
         current_ayah_number=payload.start_ayah_number,
-        phase="repeat",
+        phase="recall" if payload.skip_repeat else "repeat",
         repeat_count=0,
         attempt_count=0,
+        skip_repeat=payload.skip_repeat,
     )
     db.add(session)
     db.commit()
@@ -125,15 +129,11 @@ def submit_attempt(
 
     threshold = REPEAT_PASS_THRESHOLD if session.phase == "repeat" else FLUENCY_THRESHOLD
     met_threshold = accuracy >= threshold
-    # The 95% fluency gate (recall/cumulative phases) is intentionally not
-    # enforced as a block on advancement: with current speech-recognition
-    # accuracy, requiring 95% was blocking real progress more often than it
-    # was catching genuine mistakes — recitals that were actually correct
-    # were getting stuck because the STT mis-transcribed a word or two.
-    # `accuracy` is still computed and shown to the learner every attempt,
-    # it just no longer gates anything. The repeat phase's separate, much
-    # more lenient anti-skip check (REPEAT_PASS_THRESHOLD, 60%) is untouched.
-    passed = met_threshold if session.phase == "repeat" else True
+    # Previously the 95% fluency gate on recall/cumulative was computed but not
+    # enforced, because it was blocking real progress more often than catching
+    # genuine mistakes. Lowering it to 80% and enforcing it properly: strict
+    # enough to mean something, lenient enough to survive normal STT noise.
+    passed = met_threshold
 
     message = _apply_transition(db, session, current_ayah, accuracy, passed, current_user)
 
@@ -191,7 +191,7 @@ def _advance(session: MiftahMethodSession) -> str | None:
         session.status = "completed"
         session.completed_at = datetime.utcnow()
         return "Session complete — every ayah in this range is memorized, individually and together."
-    session.phase = "repeat"
+    session.phase = "recall" if session.skip_repeat else "repeat"
     session.repeat_count = 0
     session.attempt_count = 0
     return None

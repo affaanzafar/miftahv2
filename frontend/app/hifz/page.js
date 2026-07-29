@@ -17,6 +17,10 @@ export default function HifzPage() {
   const [goalTitle, setGoalTitle] = useState("");
   const [goalDate, setGoalDate] = useState("");
   const [goalSurahId, setGoalSurahId] = useState("");
+  const [goalType, setGoalType] = useState("memorization");
+  const [useAyahRange, setUseAyahRange] = useState(false);
+  const [goalStartAyah, setGoalStartAyah] = useState(1);
+  const [goalEndAyah, setGoalEndAyah] = useState(1);
 
   function refresh() {
     Promise.all([api.getDueReviewsGrouped(), api.getProgress(), api.listGoals(), api.listSurahs()])
@@ -34,6 +38,7 @@ export default function HifzPage() {
   const memorizedCount = progress.filter((p) => p.status === "memorized").length;
   const learningCount = progress.filter((p) => p.status === "learning").length;
   const dueAyahCount = dueGroups.reduce((sum, g) => sum + g.ayah_count, 0);
+  const selectedGoalSurah = surahs.find((s) => String(s.id) === String(goalSurahId));
 
   async function handleCreateGoal(e) {
     e.preventDefault();
@@ -42,10 +47,26 @@ export default function HifzPage() {
         title: goalTitle,
         target_surah_id: goalSurahId ? Number(goalSurahId) : null,
         target_date: goalDate ? new Date(goalDate).toISOString() : null,
+        goal_type: goalType,
+        start_ayah_number: useAyahRange && goalSurahId ? Number(goalStartAyah) : null,
+        end_ayah_number: useAyahRange && goalSurahId ? Number(goalEndAyah) : null,
       });
       setGoalTitle("");
       setGoalDate("");
       setGoalSurahId("");
+      setGoalType("memorization");
+      setUseAyahRange(false);
+      setGoalStartAyah(1);
+      setGoalEndAyah(1);
+      refresh();
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
+  async function handleToggleGoalCompletion(goal) {
+    try {
+      await api.setGoalCompletion(goal.id, !goal.is_completed);
       refresh();
     } catch (err) {
       setError(err.message);
@@ -125,11 +146,37 @@ export default function HifzPage() {
             onChange={(e) => setGoalTitle(e.target.value)}
             required
           />
+
+          <label htmlFor="goalType">Type</label>
+          <select
+            id="goalType"
+            value={goalType}
+            onChange={(e) => setGoalType(e.target.value)}
+            style={{
+              width: "100%",
+              padding: "10px 12px",
+              border: "1px solid var(--parchment-deep)",
+              borderRadius: "var(--radius)",
+              marginBottom: 18,
+              fontSize: 15,
+              fontFamily: "inherit",
+              background: "#fff",
+              color: "var(--ink)",
+            }}
+          >
+            <option value="memorization">Memorization</option>
+            <option value="revision">Revision</option>
+          </select>
+
           <label htmlFor="goalSurah">Target surah (optional, for progress tracking)</label>
           <select
             id="goalSurah"
             value={goalSurahId}
-            onChange={(e) => setGoalSurahId(e.target.value)}
+            onChange={(e) => {
+              setGoalSurahId(e.target.value);
+              setGoalStartAyah(1);
+              setGoalEndAyah(1);
+            }}
             style={{
               width: "100%",
               padding: "10px 12px",
@@ -149,6 +196,53 @@ export default function HifzPage() {
               </option>
             ))}
           </select>
+
+          {goalSurahId && (
+            <>
+              <label style={{ display: "flex", alignItems: "center", gap: 8, textTransform: "none", fontSize: 14, fontWeight: 600, color: "var(--ink)" }}>
+                <input
+                  type="checkbox"
+                  checked={useAyahRange}
+                  onChange={(e) => setUseAyahRange(e.target.checked)}
+                  style={{ width: "auto", margin: 0 }}
+                />
+                Target specific ayahs, not the whole surah
+              </label>
+              {useAyahRange && (
+                <div style={{ display: "flex", gap: 12 }}>
+                  <div style={{ flex: 1 }}>
+                    <label htmlFor="goalStartAyah">From ayah</label>
+                    <input
+                      id="goalStartAyah"
+                      type="number"
+                      min={1}
+                      max={selectedGoalSurah?.ayah_count || 999}
+                      value={goalStartAyah}
+                      onChange={(e) => setGoalStartAyah(e.target.value)}
+                    />
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <label htmlFor="goalEndAyah">To ayah</label>
+                    <input
+                      id="goalEndAyah"
+                      type="number"
+                      min={goalStartAyah || 1}
+                      max={selectedGoalSurah?.ayah_count || 999}
+                      value={goalEndAyah}
+                      onChange={(e) => setGoalEndAyah(e.target.value)}
+                    />
+                  </div>
+                </div>
+              )}
+              {useAyahRange && (
+                <p className="muted" style={{ marginTop: -8, marginBottom: 18 }}>
+                  This goal will stay <strong>pending</strong> until you mark it done yourself — it
+                  won't auto-complete from recitation activity.
+                </p>
+              )}
+            </>
+          )}
+
           <label htmlFor="goalDate">Target date (optional)</label>
           <input id="goalDate" type="date" value={goalDate} onChange={(e) => setGoalDate(e.target.value)} />
           <button type="submit">Add goal</button>
@@ -158,20 +252,46 @@ export default function HifzPage() {
           <div key={g.id} className="card">
             <div className="card-row">
               <div>
-                <h3>{g.title}</h3>
-                {g.target_date && <span className="muted">Target: {new Date(g.target_date).toLocaleDateString()}</span>}
+                <h3>
+                  {g.title}{" "}
+                  <span className="pill" style={{ background: g.goal_type === "revision" ? "rgba(106,90,158,0.16)" : "rgba(184,134,47,0.16)", color: g.goal_type === "revision" ? "var(--violet)" : "var(--gold)" }}>
+                    {g.goal_type}
+                  </span>
+                </h3>
+                {g.start_ayah_number && (
+                  <span className="muted">
+                    Ayahs {g.start_ayah_number}
+                    {g.end_ayah_number !== g.start_ayah_number ? `–${g.end_ayah_number}` : ""}
+                  </span>
+                )}
+                {g.target_date && (
+                  <span className="muted" style={{ display: "block" }}>
+                    Target: {new Date(g.target_date).toLocaleDateString()}
+                  </span>
+                )}
               </div>
               <button className="secondary" onClick={() => handleDeleteGoal(g.id)}>
                 Remove
               </button>
             </div>
-            {g.target_surah_id && (
-              <>
-                <div className="progress-bar-track">
-                  <div className="progress-bar-fill" style={{ width: `${g.progress_percent}%` }} />
-                </div>
-                <span className="muted">{g.progress_percent}% of the target surah memorized</span>
-              </>
+            {g.start_ayah_number ? (
+              <div className="card-row" style={{ marginTop: 8 }}>
+                <span className={`pill ${g.is_completed ? "status-memorized" : "status-learning"}`}>
+                  {g.is_completed ? "Done" : "Pending"}
+                </span>
+                <button className="secondary" onClick={() => handleToggleGoalCompletion(g)}>
+                  {g.is_completed ? "Mark as pending" : "Mark as done"}
+                </button>
+              </div>
+            ) : (
+              g.target_surah_id && (
+                <>
+                  <div className="progress-bar-track">
+                    <div className="progress-bar-fill" style={{ width: `${g.progress_percent}%` }} />
+                  </div>
+                  <span className="muted">{g.progress_percent}% of the target surah memorized</span>
+                </>
+              )
             )}
           </div>
         ))}

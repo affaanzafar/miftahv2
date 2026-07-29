@@ -135,6 +135,12 @@ class GoalCreate(BaseModel):
     target_surah_id: int | None = None
     target_juz: int | None = None
     target_date: str | None = None
+    # Custom-range goals (optional): a specific ayah span within
+    # target_surah_id, e.g. "ayah 5 to 12 of Al-Baqarah". When both are
+    # set, progress is manual (pending/done) instead of auto-computed.
+    start_ayah_number: int | None = None
+    end_ayah_number: int | None = None
+    goal_type: str = "memorization"  # "memorization" | "revision"
 
 
 class GoalOut(BaseModel):
@@ -143,10 +149,19 @@ class GoalOut(BaseModel):
     target_surah_id: int | None = None
     target_juz: int | None = None
     target_date: str | None = None
+    start_ayah_number: int | None = None
+    end_ayah_number: int | None = None
+    goal_type: str = "memorization"
+    is_completed: bool = False
+    completed_at: str | None = None
     progress_percent: int = 0
 
     class Config:
         from_attributes = True
+
+
+class GoalCompletionUpdate(BaseModel):
+    is_completed: bool
 
 
 # ---------------------------------------------------------------------------
@@ -157,6 +172,10 @@ class MiftahMethodStartRequest(BaseModel):
     surah_id: int
     start_ayah_number: int
     end_ayah_number: int
+    # True = start every ayah straight in "recall" (hidden, from memory)
+    # and skip the 4x visible-repeat step — for testing what's already
+    # memorized rather than learning it fresh.
+    skip_repeat: bool = False
 
 
 class MiftahMethodAttemptRequest(BaseModel):
@@ -172,6 +191,7 @@ class MiftahMethodSessionOut(BaseModel):
     phase: str
     repeat_count: int
     attempt_count: int
+    skip_repeat: bool = False
     status: str
 
     class Config:

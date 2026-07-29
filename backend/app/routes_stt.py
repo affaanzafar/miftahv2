@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi.concurrency import run_in_threadpool
 
 from app.models import User
 from app.routes_auth import get_current_user
@@ -25,6 +26,11 @@ async def transcribe_audio(
     the frontend is responsible for stitching returned transcripts together
     across chunks, exactly as it previously stitched together the browser
     Web Speech API's `isFinal` results.
+
+    decode_audio_to_array/transcribe are synchronous, CPU-bound (PyAV +
+    torch inference) with no `await` inside them — run via run_in_threadpool
+    so one chunk transcribing doesn't block the event loop and stall every
+    other request the server is handling (including the *next* audio chunk).
     """
     raw = await file.read()
     if len(raw) > MAX_UPLOAD_BYTES:
@@ -33,9 +39,9 @@ async def transcribe_audio(
         return {"transcript": ""}
 
     try:
-        audio = decode_audio_to_array(raw)
+        audio = await run_in_threadpool(decode_audio_to_array, raw)
     except Exception:
         raise HTTPException(status_code=400, detail="Could not decode audio")
 
-    text = transcribe(audio)
+    text = await run_in_threadpool(transcribe, audio)
     return {"transcript": text}

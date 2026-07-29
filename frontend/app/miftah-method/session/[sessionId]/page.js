@@ -12,6 +12,11 @@ const PHASE_LABEL = {
   cumulative: "Step 3 — Recall together with everything so far",
 };
 
+const PHASE_LABEL_SKIP_REPEAT = {
+  recall: "Recall from memory",
+  cumulative: "Recall together with everything so far",
+};
+
 export default function MiftahMethodSessionPage() {
   const { sessionId } = useParams();
   const router = useRouter();
@@ -20,6 +25,21 @@ export default function MiftahMethodSessionPage() {
   const [error, setError] = useState("");
   const [feedback, setFeedback] = useState(null); // { results, accuracy, passed, message }
   const [submitting, setSubmitting] = useState(false);
+  const [scriptScope, setScriptScope] = useState(null); // null (closed) | "session" | "surah"
+  const [surahMemorized, setSurahMemorized] = useState(null); // fetched lazily on first "whole surah" view
+
+  function loadSurahMemorized(surahId) {
+    if (surahMemorized) return;
+    api
+      .getProgress()
+      .then((rows) => {
+        const memorized = rows
+          .filter((r) => r.surah_id === Number(surahId) && r.status === "memorized")
+          .sort((a, b) => a.ayah_number - b.ayah_number);
+        setSurahMemorized(memorized);
+      })
+      .catch((e) => setError(e.message));
+  }
 
   const { transcript, isListening, isSupported, start, stop, reset } = useSpeechRecognition();
 
@@ -111,12 +131,15 @@ export default function MiftahMethodSessionPage() {
         <h1 className="page-title">{session.surah.name_transliteration}</h1>
         <p className="page-subtitle">
           Ayah {session.current_ayah_number} of {session.end_ayah_number} (started at {session.start_ayah_number})
+          {session.skip_repeat && " · Test mode — reciting from memory only"}
         </p>
 
         {error && <div className="error-banner">{error}</div>}
 
         <div className={`phase-banner phase-${session.phase}`}>
-          <span>{PHASE_LABEL[session.phase]}</span>
+          <span>
+            {session.skip_repeat ? PHASE_LABEL_SKIP_REPEAT[session.phase] : PHASE_LABEL[session.phase]}
+          </span>
           {session.phase === "repeat" && (
             <div className="repeat-dots">
               {[0, 1, 2, 3].map((i) => (
@@ -173,17 +196,105 @@ export default function MiftahMethodSessionPage() {
             <p className={feedback.passed ? "success-banner" : "error-banner"} style={{ marginTop: 8 }}>
               {feedback.message}
             </p>
-            <button onClick={handleTryAgain}>
+            {/* Word-level breakdown — what was actually said vs. what was expected.
+                Shown for every phase, including recall/cumulative where the ayah text
+                was hidden while reciting: the point here isn't to peek before reciting,
+                it's to see exactly which word(s) broke a failed (or passed) attempt. */}
+            {feedback.results?.length > 0 && (
+              <div style={{ marginTop: 12 }}>
+                <p className="muted" style={{ marginBottom: 6 }}>What you recited:</p>
+                <p className="ayah-arabic" style={{ fontSize: 24 }}>
+                  {feedback.results
+                    .filter((r) => r.status !== "added")
+                    .map((r, i) => (
+                      <span key={i} className={`ayah-word ${r.status}`} title={r.status}>
+                        {r.expected ?? r.recognized}{" "}
+                      </span>
+                    ))}
+                </p>
+                {feedback.results.some((r) => r.status === "wrong" || r.status === "missed") && (
+                  <p className="muted" style={{ fontSize: 13, marginTop: 4 }}>
+                    <span style={{ color: "var(--wrong)" }}>underlined</span> = said differently ·{" "}
+                    <span style={{ color: "var(--gold)" }}>faded</span> = skipped entirely
+                  </p>
+                )}
+              </div>
+            )}
+            <button onClick={handleTryAgain} style={{ marginTop: 12 }}>
               {feedback.passed ? "Continue" : "Try again"}
             </button>
           </div>
         )}
 
-        <p className="muted" style={{ marginTop: 24 }}>
-          Mastered so far in this session:{" "}
-          {cumulativeAyahs.filter((a) => a.ayah_number < session.current_ayah_number).map((a) => a.ayah_number).join(", ") ||
-            "none yet"}
-        </p>
+        <div style={{ marginTop: 24 }}>
+          <p className="muted" style={{ marginBottom: 8 }}>
+            Mastered so far in this session:{" "}
+            {cumulativeAyahs.filter((a) => a.ayah_number < session.current_ayah_number).map((a) => a.ayah_number).join(", ") ||
+              "none yet"}
+          </p>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button
+              type="button"
+              className="secondary"
+              onClick={() => setScriptScope(scriptScope === "session" ? null : "session")}
+            >
+              {scriptScope === "session" ? "Hide script" : "View this session's script"}
+            </button>
+            <button
+              type="button"
+              className="secondary"
+              onClick={() => {
+                const next = scriptScope === "surah" ? null : "surah";
+                setScriptScope(next);
+                if (next === "surah") loadSurahMemorized(session.surah_id);
+              }}
+            >
+              {scriptScope === "surah" ? "Hide script" : "View whole surah memorized"}
+            </button>
+          </div>
+
+          {scriptScope === "session" && (
+            <div className="card" style={{ marginTop: 12 }}>
+              {cumulativeAyahs.filter((a) => a.ayah_number < session.current_ayah_number).length === 0 ? (
+                <p className="muted" style={{ margin: 0 }}>Nothing mastered in this session yet.</p>
+              ) : (
+                cumulativeAyahs
+                  .filter((a) => a.ayah_number < session.current_ayah_number)
+                  .map((a) => (
+                    <p key={a.id} className="ayah-arabic" style={{ marginBottom: 10 }}>
+                      <span className="muted" style={{ fontFamily: "Manrope, sans-serif", fontSize: 13, marginRight: 8 }}>
+                        {a.ayah_number}
+                      </span>
+                      {a.words.map((w) => (
+                        <span key={w.position} className="ayah-word">
+                          {w.text_uthmani}{" "}
+                        </span>
+                      ))}
+                    </p>
+                  ))
+              )}
+            </div>
+          )}
+
+          {scriptScope === "surah" && (
+            <div className="card" style={{ marginTop: 12 }}>
+              {!surahMemorized ? (
+                <p className="muted" style={{ margin: 0 }}>Loading…</p>
+              ) : surahMemorized.length === 0 ? (
+                <p className="muted" style={{ margin: 0 }}>No ayahs marked memorized in {session.surah.name_transliteration} yet.</p>
+              ) : (
+                surahMemorized.map((a) => (
+                  <p key={a.ayah_id} className="ayah-arabic" style={{ marginBottom: 10 }}>
+                    <span className="muted" style={{ fontFamily: "Manrope, sans-serif", fontSize: 13, marginRight: 8 }}>
+                      {a.ayah_number}
+                    </span>
+                    {a.text_uthmani}
+                  </p>
+                ))
+              )}
+            </div>
+          )}
+        </div>
       </main>
     </>
   );
