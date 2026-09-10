@@ -7,6 +7,14 @@ import Nav from "../../../components/Nav";
 import { api, getToken } from "../../../lib/api";
 import { useSpeechRecognition } from "../../../lib/useSpeechRecognition";
 
+const EASTERN_ARABIC_DIGITS = ["٠", "١", "٢", "٣", "٤", "٥", "٦", "٧", "٨", "٩"];
+function toEasternArabicNumeral(n) {
+  return String(n)
+    .split("")
+    .map((d) => EASTERN_ARABIC_DIGITS[Number(d)] ?? d)
+    .join("");
+}
+
 /**
  * Continuous "whole mushaf" recitation.
  *
@@ -41,6 +49,7 @@ export default function RecitePage() {
   const [sessionSummary, setSessionSummary] = useState(null);
   const [appliedToHifz, setAppliedToHifz] = useState(false);
   const [checking, setChecking] = useState(false);
+  const [viewMode, setViewMode] = useState("mushaf"); // "mushaf" | "cards"
 
   const { transcript, finalTranscript, isListening, isSupported, start, stop, reset } = useSpeechRecognition();
 
@@ -366,57 +375,126 @@ export default function RecitePage() {
           </button>
         )}
 
-        <div style={{ marginTop: 28 }}>
-          {ayahsInRange.map((ayah, idx) => {
-            const result = ayahResults[ayah.id];
-            const isFocus = sessionId && idx === focusIndex && !result;
-            const isDone = !!result;
-
-            return (
-              <div
-                key={ayah.id}
-                ref={(el) => (ayahRefs.current[ayah.id] = el)}
-                className="illuminated-card"
-                style={{
-                  marginBottom: 20,
-                  cursor: sessionId ? "pointer" : "default",
-                  outline: isFocus ? "2px solid var(--gold)" : "none",
-                  outlineOffset: 2,
-                }}
-                onClick={() => sessionId && !isDone && jumpToAyah(idx)}
-              >
-                <p className="muted" style={{ margin: "0 0 8px" }}>
-                  Ayah {ayah.ayah_number}
-                  {isDone && (
-                    <span style={{ marginLeft: 10 }}>
-                      · <strong>{result.ayah_accuracy}%</strong>
-                    </span>
-                  )}
-                  {isFocus && (
-                    <span style={{ marginLeft: 10, color: "var(--gold-soft)" }}>
-                      {isListening ? "● listening…" : "paused"}
-                    </span>
-                  )}
-                </p>
-                <p className="ayah-arabic">
-                  {isDone
-                    ? result.results
-                        .filter((r) => r.status !== "added")
-                        .map((r, i) => (
-                          <span key={i} className={`ayah-word ${r.status}`}>
-                            {r.expected}{" "}
-                          </span>
-                        ))
-                    : ayah.words.map((w) => (
-                        <span key={w.position} className="ayah-word">
-                          {w.text_uthmani}{" "}
-                        </span>
-                      ))}
-                </p>
-              </div>
-            );
-          })}
+        <div className="tabs" role="tablist" aria-label="Ayah display">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={viewMode === "mushaf"}
+            className={`tab-button ${viewMode === "mushaf" ? "active" : ""}`}
+            onClick={() => setViewMode("mushaf")}
+          >
+            Madani mushaf
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={viewMode === "cards"}
+            className={`tab-button ${viewMode === "cards" ? "active" : ""}`}
+            onClick={() => setViewMode("cards")}
+          >
+            Ayah cards
+          </button>
         </div>
+
+        {viewMode === "mushaf" ? (
+          <div className="mushaf-page-card" style={{ marginTop: 8 }}>
+            <p className="mushaf-page">
+              {ayahsInRange.map((ayah, idx) => {
+                const result = ayahResults[ayah.id];
+                const isFocus = sessionId && idx === focusIndex && !result;
+                const isDone = !!result;
+                const words = isDone
+                  ? result.results.filter((r) => r.status !== "added")
+                  : ayah.words.map((w) => ({ expected: w.text_uthmani, status: null }));
+
+                const markerClass = isDone
+                  ? result.ayah_accuracy >= 80
+                    ? "scored-high"
+                    : "scored-low"
+                  : isFocus
+                  ? "marker-focus"
+                  : "";
+
+                return (
+                  <span
+                    key={ayah.id}
+                    ref={(el) => (ayahRefs.current[ayah.id] = el)}
+                    className={`mushaf-ayah ${isFocus ? "mushaf-ayah-focus" : ""}`}
+                    style={{ cursor: sessionId && !isDone ? "pointer" : "default" }}
+                    onClick={() => sessionId && !isDone && jumpToAyah(idx)}
+                  >
+                    {words.map((w, i) => (
+                      <span key={i} className={`ayah-word ${w.status || ""}`}>
+                        {w.expected}{" "}
+                      </span>
+                    ))}
+                    <span
+                      className={`ayah-end-marker ${markerClass}`}
+                      title={isDone ? `Ayah ${ayah.ayah_number} · ${result.ayah_accuracy}%` : `Ayah ${ayah.ayah_number}`}
+                    >
+                      {toEasternArabicNumeral(ayah.ayah_number)}
+                    </span>
+                    {isFocus && (
+                      <span className="mushaf-listening-dot">{isListening ? "●" : "‖"}</span>
+                    )}{" "}
+                  </span>
+                );
+              })}
+            </p>
+          </div>
+        ) : (
+          <div style={{ marginTop: 8 }}>
+            {ayahsInRange.map((ayah, idx) => {
+              const result = ayahResults[ayah.id];
+              const isFocus = sessionId && idx === focusIndex && !result;
+              const isDone = !!result;
+
+              return (
+                <div
+                  key={ayah.id}
+                  ref={(el) => (ayahRefs.current[ayah.id] = el)}
+                  className="illuminated-card"
+                  style={{
+                    marginBottom: 20,
+                    cursor: sessionId ? "pointer" : "default",
+                    outline: isFocus ? "2px solid var(--gold)" : "none",
+                    outlineOffset: 2,
+                  }}
+                  onClick={() => sessionId && !isDone && jumpToAyah(idx)}
+                >
+                  <p className="muted" style={{ margin: "0 0 8px" }}>
+                    Ayah {ayah.ayah_number}
+                    {isDone && (
+                      <span style={{ marginLeft: 10 }}>
+                        · <strong>{result.ayah_accuracy}%</strong>
+                      </span>
+                    )}
+                    {isFocus && (
+                      <span style={{ marginLeft: 10, color: "var(--gold-soft)" }}>
+                        {isListening ? "● listening…" : "paused"}
+                      </span>
+                    )}
+                  </p>
+                  <p className="ayah-arabic">
+                    {isDone
+                      ? result.results
+                          .filter((r) => r.status !== "added")
+                          .map((r, i) => (
+                            <span key={i} className={`ayah-word ${r.status}`}>
+                              {r.expected}{" "}
+                            </span>
+                          ))
+                      : ayah.words.map((w) => (
+                          <span key={w.position} className="ayah-word">
+                            {w.text_uthmani}{" "}
+                          </span>
+                        ))}
+                  </p>
+                </div>
+              );
+            })}
+          </div>
+        )}
 
         {sessionId && !sessionSummary && (
           <div className="card recite-controls">
