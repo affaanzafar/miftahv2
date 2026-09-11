@@ -7,11 +7,11 @@ import { motion } from "framer-motion";
 import { clearToken, getToken } from "../lib/api";
 
 const LINKS = [
-  { href: "/", label: "Home" },
-  { href: "/hifz", label: "Hifz" },
-  { href: "/miftah-method", label: "Miftah Method" },
-  { href: "/circles", label: "Circles" },
-  { href: "/account", label: "Account" },
+  { href: "/miftah", label: "Home" },
+  { href: "/miftah/hifz", label: "Hifz" },
+  { href: "/miftah/miftah-method", label: "Miftah Method" },
+  { href: "/miftah/circles", label: "Circles" },
+  { href: "/miftah/account", label: "Account" },
 ];
 
 export default function Nav() {
@@ -40,14 +40,21 @@ export default function Nav() {
   function logout() {
     clearToken();
     setMenuOpen(false);
-    router.push("/login");
+    router.push("/miftah/login");
   }
 
   return (
     <nav className={`nav${scrolled ? " nav-scrolled" : ""}`}>
-      <Link href="/" className="nav-brand">
-        مفتاح Miftah
-      </Link>
+      <div className="nav-brand-group">
+        <Link href="/" className="nav-j2j-link" title="Back to Journey to Jannah">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/logo-mark.png" alt="" width={20} height={20} style={{ borderRadius: "50%", verticalAlign: "middle", marginRight: 6 }} />
+          Journey to Jannah
+        </Link>
+        <Link href="/miftah" className="nav-brand">
+          مفتاح Miftah
+        </Link>
+      </div>
       <button
         type="button"
         className="nav-toggle"
@@ -79,10 +86,10 @@ export default function Nav() {
           </button>
         ) : (
           <>
-            <Link href="/login" className="nav-link" onClick={() => setMenuOpen(false)}>
+            <Link href="/miftah/login" className="nav-link" onClick={() => setMenuOpen(false)}>
               Log in
             </Link>
-            <Link href="/register" onClick={() => setMenuOpen(false)}>
+            <Link href="/miftah/register" onClick={() => setMenuOpen(false)}>
               <button type="button">Sign up</button>
             </Link>
           </>

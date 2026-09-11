@@ -4,8 +4,8 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import Nav from "../../components/Nav";
-import { api, setToken } from "../../lib/api";
+import Nav from "../../../components/Nav";
+import { api, setToken } from "../../../lib/api";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -21,7 +21,7 @@ export default function LoginPage() {
     try {
       const { access_token } = await api.login(email, password);
       setToken(access_token);
-      router.push("/");
+      router.push("/miftah");
     } catch (err) {
       setError(err.message);
     } finally {
@@ -79,7 +79,7 @@ export default function LoginPage() {
 
             <p className="muted" style={{ textAlign: "center", marginTop: 18, marginBottom: 0 }}>
               No account?{" "}
-              <Link href="/register" style={{ color: "var(--gold-soft)", fontWeight: 700 }}>
+              <Link href="/miftah/register" style={{ color: "var(--gold-soft)", fontWeight: 700 }}>
                 Register
               </Link>
             </p>

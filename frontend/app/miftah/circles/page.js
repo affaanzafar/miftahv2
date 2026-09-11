@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import Nav from "../../components/Nav";
-import { api, uploadToCloudinary } from "../../lib/api";
+import Nav from "../../../components/Nav";
+import { api, uploadToCloudinary } from "../../../lib/api";
 
 const POLL_INTERVAL_MS = 4000;
 

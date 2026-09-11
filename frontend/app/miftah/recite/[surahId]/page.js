@@ -3,9 +3,9 @@
 import { useEffect, useRef, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import Nav from "../../../components/Nav";
-import { api, getToken } from "../../../lib/api";
-import { useSpeechRecognition } from "../../../lib/useSpeechRecognition";
+import Nav from "../../../../components/Nav";
+import { api, getToken } from "../../../../lib/api";
+import { useSpeechRecognition } from "../../../../lib/useSpeechRecognition";
 
 const EASTERN_ARABIC_DIGITS = ["٠", "١", "٢", "٣", "٤", "٥", "٦", "٧", "٨", "٩"];
 function toEasternArabicNumeral(n) {
@@ -247,7 +247,7 @@ export default function RecitePage() {
   async function handleApplyToHifz() {
     try {
       await api.applyReview(sessionId);
-      router.push("/hifz");
+      router.push("/miftah/hifz");
     } catch (e) {
       setError(e.message);
     }
@@ -315,7 +315,7 @@ export default function RecitePage() {
           {!loggedIn ? (
             <p className="muted">
               This was practiced as a guest — nothing was saved.{" "}
-              <Link href="/register" style={{ color: "var(--gold)" }}>
+              <Link href="/miftah/register" style={{ color: "var(--gold)" }}>
                 Create a free account
               </Link>{" "}
               to track accuracy over time and build your hifz.
@@ -325,7 +325,7 @@ export default function RecitePage() {
           ) : (
             <button onClick={handleApplyToHifz}>Apply to hifz schedule</button>
           )}{" "}
-          <button className="secondary" onClick={() => router.push(isReview ? "/hifz" : "/")}>
+          <button className="secondary" onClick={() => router.push(isReview ? "/miftah/hifz" : "/miftah")}>
             {isReview ? "Back to hifz" : "Back to surahs"}
           </button>
         </main>
@@ -361,7 +361,7 @@ export default function RecitePage() {
             <p className="muted" style={{ margin: 0 }}>
               You're not signed in — you can still recite and get live correction, but nothing
               will be saved.{" "}
-              <Link href="/register" style={{ color: "var(--gold)" }}>
+              <Link href="/miftah/register" style={{ color: "var(--gold)" }}>
                 Create a free account
               </Link>{" "}
               to track your progress.

@@ -1,8 +1,13 @@
 import "./globals.css";
 
 export const metadata = {
-  title: "Miftah — Quran memorization",
-  description: "Recite, get corrected in real time, and track your hifz journey.",
+  title: "Journey to Jannah",
+  description:
+    "A Muslim learning and community ecosystem — beginning with Miftah, guided Qur'an memorization with real-time correction.",
+  icons: {
+    icon: "/favicon-32.png",
+    apple: "/apple-touch-icon.png",
+  },
 };
 
 export default function RootLayout({ children }) {

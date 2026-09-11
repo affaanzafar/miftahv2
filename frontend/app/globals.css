@@ -116,6 +116,12 @@ body {
   box-shadow: 0 4px 24px rgba(28, 43, 35, 0.08);
 }
 
+.nav-brand-group {
+  display: flex;
+  align-items: baseline;
+  gap: 14px;
+}
+
 .nav-brand {
   font-family: "Space Grotesk", serif;
   font-size: 22px;
@@ -123,6 +129,29 @@ body {
   color: var(--forest);
   letter-spacing: 0.01em;
   text-decoration: none;
+}
+
+.nav-j2j-link {
+  font-family: "Manrope", sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--ink-soft);
+  text-decoration: none;
+  padding-right: 14px;
+  border-right: 1px solid var(--glass-border);
+  transition: color 0.2s ease;
+}
+
+.nav-j2j-link:hover,
+.nav-j2j-link:focus-visible {
+  color: var(--gold);
+}
+
+@media (max-width: 760px) {
+  .nav-j2j-link {
+    display: none;
+  }
 }
 
 .nav-links {
@@ -894,7 +923,8 @@ button:disabled {
   content: "";
   position: absolute;
   inset: 0;
-  background: radial-gradient(ellipse 500px 300px at 100% 0%, rgba(184, 134, 47, 0.18), transparent 60%);
+  background: radial-gradient(ellipse 500px 300px at 100% 0%, rgba(184, 134, 47, 0.18), transparent 60%),
+    radial-gradient(ellipse 420px 340px at 0% 100%, rgba(184, 134, 47, 0.1), transparent 65%);
   pointer-events: none;
 }
 

@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Nav from "../../components/Nav";
-import AnimatedNumber from "../../components/AnimatedNumber";
-import { api } from "../../lib/api";
+import Nav from "../../../components/Nav";
+import AnimatedNumber from "../../../components/AnimatedNumber";
+import { api } from "../../../lib/api";
 
 export default function AccountPage() {
   const [me, setMe] = useState(null);
@@ -163,7 +163,7 @@ export default function AccountPage() {
         <div className="card">
           <div className="card-row">
             <h3 style={{ margin: 0 }}>Goals</h3>
-            <a href="/hifz" style={{ fontSize: 14 }}>Manage in Hifz →</a>
+            <a href="/miftah/hifz" style={{ fontSize: 14 }}>Manage in Hifz →</a>
           </div>
           {goals.length === 0 ? (
             <p className="muted" style={{ marginTop: 8 }}>No goals set yet.</p>

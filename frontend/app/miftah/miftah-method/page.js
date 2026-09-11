@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import Nav from "../../components/Nav";
-import { api } from "../../lib/api";
+import Nav from "../../../components/Nav";
+import { api } from "../../../lib/api";
 
 export default function MiftahMethodPage() {
   const router = useRouter();
@@ -31,7 +31,7 @@ export default function MiftahMethodPage() {
     setLoading(true);
     try {
       const session = await api.startMiftahMethod(Number(surahId), Number(startAyah), Number(endAyah), skipRepeat);
-      router.push(`/miftah-method/session/${session.id}`);
+      router.push(`/miftah/miftah-method/session/${session.id}`);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -77,7 +77,7 @@ export default function MiftahMethodPage() {
                       Ayahs {s.start_ayah_number}–{s.end_ayah_number} · now on ayah {s.current_ayah_number} · {s.phase}
                     </span>
                   </div>
-                  <button onClick={() => router.push(`/miftah-method/session/${s.id}`)}>Continue</button>
+                  <button onClick={() => router.push(`/miftah/miftah-method/session/${s.id}`)}>Continue</button>
                 </div>
               );
             })}

@@ -3,8 +3,8 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import Nav from "../../components/Nav";
-import { api, setToken } from "../../lib/api";
+import Nav from "../../../components/Nav";
+import { api, setToken } from "../../../lib/api";
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -22,7 +22,7 @@ export default function RegisterPage() {
       await api.register(email, password, displayName);
       const { access_token } = await api.login(email, password);
       setToken(access_token);
-      router.push("/");
+      router.push("/miftah");
     } catch (err) {
       setError(err.message);
     } finally {
@@ -62,7 +62,7 @@ export default function RegisterPage() {
         </form>
 
         <p className="muted" style={{ marginTop: 16 }}>
-          Already have an account? <Link href="/login">Log in</Link>
+          Already have an account? <Link href="/miftah/login">Log in</Link>
         </p>
       </main>
     </>

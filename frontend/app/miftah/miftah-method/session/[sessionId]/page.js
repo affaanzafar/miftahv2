@@ -2,9 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import Nav from "../../../../components/Nav";
-import { api } from "../../../../lib/api";
-import { useSpeechRecognition } from "../../../../lib/useSpeechRecognition";
+import Nav from "../../../../../components/Nav";
+import { api } from "../../../../../lib/api";
+import { useSpeechRecognition } from "../../../../../lib/useSpeechRecognition";
 
 const PHASE_LABEL = {
   repeat: "Step 1 — Repeat aloud",
@@ -109,8 +109,8 @@ export default function MiftahMethodSessionPage() {
               Memorized individually, and fluent as a set. Nicely done.
             </p>
           </div>
-          <button onClick={() => router.push("/hifz")}>View in Hifz</button>{" "}
-          <button className="secondary" onClick={() => router.push("/miftah-method")}>
+          <button onClick={() => router.push("/miftah/hifz")}>View in Hifz</button>{" "}
+          <button className="secondary" onClick={() => router.push("/miftah/miftah-method")}>
             Start another session
           </button>
         </main>

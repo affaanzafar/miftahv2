@@ -2,9 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import AnimatedNumber from "../../components/AnimatedNumber";
-import Nav from "../../components/Nav";
-import { api } from "../../lib/api";
+import AnimatedNumber from "../../../components/AnimatedNumber";
+import Nav from "../../../components/Nav";
+import { api } from "../../../lib/api";
 
 export default function HifzPage() {
   const router = useRouter();
@@ -84,7 +84,7 @@ export default function HifzPage() {
 
   function startReview(group) {
     router.push(
-      `/recite/${group.surah_id}?review=1&start=${group.start_ayah_number}&end=${group.end_ayah_number}`
+      `/miftah/recite/${group.surah_id}?review=1&start=${group.start_ayah_number}&end=${group.end_ayah_number}`
     );
   }
 
