@@ -5,7 +5,10 @@ export const metadata = {
   description:
     "A Muslim learning and community ecosystem — beginning with Miftah, guided Qur'an memorization with real-time correction.",
   icons: {
-    icon: "/favicon-32.png",
+    icon: [
+      { url: "/logo-mark.svg", type: "image/svg+xml" },
+      { url: "/favicon-32.png", sizes: "32x32", type: "image/png" },
+    ],
     apple: "/apple-touch-icon.png",
   },
 };

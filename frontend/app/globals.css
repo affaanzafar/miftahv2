@@ -141,6 +141,9 @@ body {
   padding-right: 14px;
   border-right: 1px solid var(--glass-border);
   transition: color 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .nav-j2j-link:hover,
@@ -777,6 +780,40 @@ button:disabled {
   .mushaf-page {
     font-size: 24px;
     line-height: 2.4;
+  }
+}
+
+/* --------------------------- J2J landing background ------------------------
+   A low-opacity mosque-arcade frieze near the top plus a sparse scattered
+   "light" field down the page — texture, not a photo, so it stays subtle
+   ("presence, not attention") and costs nothing to load. Scoped to the J2J
+   root landing page only; the site-wide .bg-orbs glow underneath is
+   untouched so Miftah's own pages don't inherit this.
+   -------------------------------------------------------------------- */
+
+.j2j-landing {
+  position: relative;
+}
+
+.j2j-landing-bg {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  opacity: 0.55;
+  background-image: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0MjAiIGhlaWdodD0iNDIwIiB2aWV3Qm94PSIwIDAgNDIwIDQyMCI+CiAgPGNpcmNsZSBjeD0iNDAiIGN5PSI2MCIgcj0iMi41IiBmaWxsPSIjZGNhZTViIi8+CiAgPGNpcmNsZSBjeD0iMTgwIiBjeT0iMzAiIHI9IjEuOCIgZmlsbD0iI2RjYWU1YiIvPgogIDxjaXJjbGUgY3g9IjMzMCIgY3k9IjgwIiByPSIyLjIiIGZpbGw9IiNkY2FlNWIiLz4KICA8Y2lyY2xlIGN4PSI5MCIgY3k9IjE2MCIgcj0iMS41IiBmaWxsPSIjZGNhZTViIi8+CiAgPGNpcmNsZSBjeD0iMjYwIiBjeT0iMTkwIiByPSIyIiBmaWxsPSIjZGNhZTViIi8+CiAgPGNpcmNsZSBjeD0iMzgwIiBjeT0iMjMwIiByPSIxLjYiIGZpbGw9IiNkY2FlNWIiLz4KICA8Y2lyY2xlIGN4PSIyMCIgY3k9IjI4MCIgcj0iMiIgZmlsbD0iI2RjYWU1YiIvPgogIDxjaXJjbGUgY3g9IjE1MCIgY3k9IjMyMCIgcj0iMS41IiBmaWxsPSIjZGNhZTViIi8+CiAgPGNpcmNsZSBjeD0iMzAwIiBjeT0iMzUwIiByPSIyLjQiIGZpbGw9IiNkY2FlNWIiLz4KICA8Y2lyY2xlIGN4PSIyMjAiIGN5PSIzOTAiIHI9IjEuNiIgZmlsbD0iI2RjYWU1YiIvPgo8L3N2Zz4="),
+    url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIzMDAiIGhlaWdodD0iMTMwIiB2aWV3Qm94PSIwIDAgMzAwIDEzMCI+CiAgPGcgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjYjg4NjJmIiBzdHJva2Utd2lkdGg9IjIiPgogICAgPHBhdGggZD0iTTE1IDEyMCBWNjAgYTM1IDM1IDAgMCAxIDcwIDAgVjEyMCIgLz4KICAgIDxwYXRoIGQ9Ik0xMTUgMTIwIFY2MCBhMzUgMzUgMCAwIDEgNzAgMCBWMTIwIiAvPgogICAgPHBhdGggZD0iTTIxNSAxMjAgVjYwIGEzNSAzNSAwIDAgMSA3MCAwIFYxMjAiIC8+CiAgPC9nPgogIDxsaW5lIHgxPSIwIiB5MT0iMTIwIiB4Mj0iMzAwIiB5Mj0iMTIwIiBzdHJva2U9IiNiODg2MmYiIHN0cm9rZS13aWR0aD0iMiIvPgo8L3N2Zz4K");
+  background-repeat: repeat, repeat-x;
+  background-size: 220px 220px, 260px 112px;
+  background-position: 0 0, center 64px;
+  -webkit-mask-image: linear-gradient(to bottom, black 0%, black 55%, transparent 100%);
+  mask-image: linear-gradient(to bottom, black 0%, black 55%, transparent 100%);
+}
+
+@media (max-width: 640px) {
+  .j2j-landing-bg {
+    background-size: 160px 160px, 190px 82px;
+    background-position: 0 0, center 56px;
   }
 }
 

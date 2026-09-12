@@ -114,6 +114,37 @@ export const api = {
     }),
 
   transcribeAudio: (blob) => transcribeAudioRequest(blob),
+
+  // --- Arabic Learning (guest-browsable; personalized when logged in) ---
+  listArabicCourses: () => request("/arabic/courses"),
+  getArabicCourse: (slug) => request(`/arabic/courses/${slug}`),
+  enrollInCourse: (slug) => request(`/arabic/courses/${slug}/enroll`, { method: "POST" }),
+  completeLesson: (lessonId) => request(`/arabic/lessons/${lessonId}/complete`, { method: "POST" }),
+
+  // --- Admin Studio (all admin-gated server-side via AdminUser) ---
+  adminWhoAmI: () => request("/admin/me"),
+  adminDashboard: () => request("/admin/dashboard"),
+  adminListCourses: () => request("/admin/courses"),
+  adminGetCourseDetail: (id) => request(`/admin/courses/${id}/detail`),
+  adminCreateCourse: (payload) => request("/admin/courses", { method: "POST", body: payload }),
+  adminUpdateCourse: (id, payload) => request(`/admin/courses/${id}`, { method: "PATCH", body: payload }),
+  adminPublishCourse: (id, publish) =>
+    request(`/admin/courses/${id}/publish?publish=${publish}`, { method: "POST" }),
+  adminDeleteCourse: (id) => request(`/admin/courses/${id}`, { method: "DELETE" }),
+  adminCreateModule: (courseId, payload) =>
+    request(`/admin/courses/${courseId}/modules`, { method: "POST", body: payload }),
+  adminDeleteModule: (moduleId) => request(`/admin/modules/${moduleId}`, { method: "DELETE" }),
+  adminCreateLesson: (moduleId, payload) =>
+    request(`/admin/modules/${moduleId}/lessons`, { method: "POST", body: payload }),
+  adminDeleteLesson: (lessonId) => request(`/admin/lessons/${lessonId}`, { method: "DELETE" }),
+  adminListAnnouncements: () => request("/admin/announcements"),
+  adminCreateAnnouncement: (payload) => request("/admin/announcements", { method: "POST", body: payload }),
+  adminPublishAnnouncement: (id, publish) =>
+    request(`/admin/announcements/${id}/publish?publish=${publish}`, { method: "PATCH" }),
+  adminDeleteAnnouncement: (id) => request(`/admin/announcements/${id}`, { method: "DELETE" }),
+  adminListUsers: (q) => request(`/admin/users${q ? `?q=${encodeURIComponent(q)}` : ""}`),
+  adminSuspendUser: (userId, suspend) =>
+    request(`/admin/users/${userId}/suspend?suspend=${suspend}`, { method: "POST" }),
 };
 
 /**

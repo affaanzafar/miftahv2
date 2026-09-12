@@ -1,4 +1,5 @@
 import Link from "next/link";
+import LogoMark from "../components/LogoMark";
 
 /**
  * Journey to Jannah — the platform-level front door.
@@ -17,8 +18,7 @@ export default function JourneyToJannahHome() {
     <>
       <nav className="nav">
         <span className="nav-brand-group" style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/logo-mark.png" alt="" width={34} height={34} style={{ borderRadius: "50%", flexShrink: 0 }} />
+          <LogoMark size={34} />
           <span className="nav-brand">Journey to Jannah</span>
         </span>
         <div className="nav-links">
@@ -31,7 +31,8 @@ export default function JourneyToJannahHome() {
         </div>
       </nav>
 
-      <main className="page">
+      <main className="page j2j-landing">
+        <div className="j2j-landing-bg" aria-hidden="true" />
         {/* -------------------------------- Hero -------------------------------- */}
         <div className="hero-panel" style={{ marginBottom: 32 }}>
           <p className="eyebrow">Journey to Jannah</p>
@@ -78,15 +79,14 @@ export default function JourneyToJannahHome() {
             </div>
           </Link>
 
-          <div className="card" style={{ cursor: "default" }} aria-disabled="true">
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+          <Link href="/arabic" className="shortcut-card">
+            <div className="card">
               <h3 style={{ margin: 0 }}>Arabic Learning</h3>
-              <span className="pill status-new">Coming soon</span>
+              <p className="muted" style={{ marginBottom: 0, marginTop: 8 }}>
+                Structured lessons from the alphabet through grammar and vocabulary. Live now.
+              </p>
             </div>
-            <p className="muted" style={{ marginBottom: 0, marginTop: 8 }}>
-              Structured lessons from the alphabet through grammar and vocabulary.
-            </p>
-          </div>
+          </Link>
 
           <div className="card" style={{ cursor: "default" }} aria-disabled="true">
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import LogoMark from "./LogoMark";
 import { motion } from "framer-motion";
 import { clearToken, getToken } from "../lib/api";
 
@@ -47,8 +48,7 @@ export default function Nav() {
     <nav className={`nav${scrolled ? " nav-scrolled" : ""}`}>
       <div className="nav-brand-group">
         <Link href="/" className="nav-j2j-link" title="Back to Journey to Jannah">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/logo-mark.png" alt="" width={20} height={20} style={{ borderRadius: "50%", verticalAlign: "middle", marginRight: 6 }} />
+          <LogoMark size={20} />
           Journey to Jannah
         </Link>
         <Link href="/miftah" className="nav-brand">
