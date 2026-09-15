@@ -208,7 +208,11 @@ export default function AdminCourseEditorPage() {
               </select>
               {lessonFormFor(m.id).content_type !== "text" && (
                 <input
-                  placeholder={`${lessonFormFor(m.id).content_type} URL`}
+                  placeholder={
+                    lessonFormFor(m.id).content_type === "video"
+                      ? "YouTube link or direct video URL"
+                      : `${lessonFormFor(m.id).content_type} URL`
+                  }
                   value={lessonFormFor(m.id).content_url}
                   onChange={(e) => updateLessonForm(m.id, { content_url: e.target.value })}
                 />

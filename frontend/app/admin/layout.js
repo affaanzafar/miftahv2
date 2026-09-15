@@ -8,6 +8,7 @@ import { api, getToken } from "../../lib/api";
 const ADMIN_LINKS = [
   { href: "/admin", label: "Dashboard" },
   { href: "/admin/courses", label: "Courses" },
+  { href: "/admin/articles", label: "Articles" },
   { href: "/admin/announcements", label: "Announcements" },
   { href: "/admin/users", label: "Users" },
 ];

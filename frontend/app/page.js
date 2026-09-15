@@ -12,6 +12,7 @@ export default function JourneyToJannahHome() {
         <div className="nav-links">
           <Link href="/miftah" className="nav-link">Miftah</Link>
           <Link href="/arabic" className="nav-link">Arabic Learning</Link>
+          <Link href="/articles" className="nav-link">Articles</Link>
           <a href="#experiences" className="nav-link">Explore</a>
           <Link href="/miftah/login" className="nav-link">Sign in</Link>
         </div>

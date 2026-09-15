@@ -124,6 +124,8 @@ export const api = {
   getQuiz: (quizId) => request(`/arabic/quizzes/${quizId}`),
   submitQuiz: (quizId, answers) => request(`/arabic/quizzes/${quizId}/submit`, { method: "POST", body: { answers } }),
   myQuizResults: () => request("/arabic/my-quiz-results"),
+  listArticles: () => request("/articles"),
+  getArticle: (slug) => request(`/articles/${slug}`),
 
   // --- Admin Studio (all admin-gated server-side via AdminUser) ---
   adminWhoAmI: () => request("/admin/me"),
@@ -143,6 +145,11 @@ export const api = {
   adminDeleteLesson: (lessonId) => request(`/admin/lessons/${lessonId}`, { method: "DELETE" }),
   adminCreateQuiz: (courseId, payload) =>
     request(`/admin/courses/${courseId}/quizzes`, { method: "POST", body: payload }),
+  adminListArticles: () => request("/admin/articles"),
+  adminCreateArticle: (payload) => request("/admin/articles", { method: "POST", body: payload }),
+  adminPublishArticle: (id, publish) =>
+    request(`/admin/articles/${id}/publish?publish=${publish}`, { method: "PATCH" }),
+  adminDeleteArticle: (id) => request(`/admin/articles/${id}`, { method: "DELETE" }),
   adminListAnnouncements: () => request("/admin/announcements"),
   adminCreateAnnouncement: (payload) => request("/admin/announcements", { method: "POST", body: payload }),
   adminPublishAnnouncement: (id, publish) =>
@@ -187,8 +194,8 @@ async function transcribeAudioRequest(blob) {
  * touches our server — this keeps Render's free-tier bandwidth/memory out
  * of the picture entirely for media.
  */
-export async function uploadToCloudinary(file) {
-  const sig = await api.getUploadSignature();
+export async function uploadToCloudinary(file, folder) {
+  const sig = folder ? await request(`/media/upload-signature?folder=${encodeURIComponent(folder)}`) : await api.getUploadSignature();
 
   const formData = new FormData();
   formData.append("file", file);

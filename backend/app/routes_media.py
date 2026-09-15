@@ -21,7 +21,7 @@ def _sign(params: dict, api_secret: str) -> str:
 
 
 @router.get("/upload-signature")
-def get_upload_signature(current_user: User = Depends(get_current_user)):
+def get_upload_signature(folder: str = "miftah_circle_chat", current_user: User = Depends(get_current_user)):
     if not settings.cloudinary_cloud_name or not settings.cloudinary_api_secret:
         raise HTTPException(
             status_code=503,
@@ -29,7 +29,7 @@ def get_upload_signature(current_user: User = Depends(get_current_user)):
         )
 
     timestamp = int(time.time())
-    params_to_sign = {"timestamp": timestamp, "folder": "miftah_circle_chat"}
+    params_to_sign = {"timestamp": timestamp, "folder": folder}
     signature = _sign(params_to_sign, settings.cloudinary_api_secret)
 
     return {
@@ -37,5 +37,5 @@ def get_upload_signature(current_user: User = Depends(get_current_user)):
         "signature": signature,
         "api_key": settings.cloudinary_api_key,
         "cloud_name": settings.cloudinary_cloud_name,
-        "folder": "miftah_circle_chat",
+        "folder": folder,
     }

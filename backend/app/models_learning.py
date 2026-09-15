@@ -111,6 +111,18 @@ class Announcement(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
+class Article(Base):
+    __tablename__ = "articles"
+
+    id = Column(UUID(as_uuid=False), primary_key=True, default=gen_uuid)
+    title = Column(String, nullable=False)
+    slug = Column(String, unique=True, nullable=False, index=True)
+    body = Column(Text, nullable=False)  # word-limited to 10,000 at the schema layer
+    pdf_url = Column(String, nullable=True)
+    is_published = Column(Boolean, default=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
 class Quiz(Base):
     __tablename__ = "quizzes"
 

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import Nav from "../../../../../components/Nav";
 import { api, getToken } from "../../../../../lib/api";
+import { youtubeId } from "../../../../../lib/youtube";
 
 export default function LessonPage() {
   const { slug, lessonId } = useParams();
@@ -98,7 +99,18 @@ export default function LessonPage() {
         {error && <p className="error-banner">{error}</p>}
 
         <div className="illuminated-card">
-          {lesson.content_type === "video" && lesson.content_url && (
+          {lesson.content_type === "video" && lesson.content_url && youtubeId(lesson.content_url) && (
+            <div style={{ position: "relative", paddingBottom: "56.25%", height: 0, marginBottom: 16, borderRadius: 12, overflow: "hidden" }}>
+              <iframe
+                src={`https://www.youtube.com/embed/${youtubeId(lesson.content_url)}`}
+                title={lesson.title}
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                allowFullScreen
+                style={{ position: "absolute", inset: 0, width: "100%", height: "100%", border: "none" }}
+              />
+            </div>
+          )}
+          {lesson.content_type === "video" && lesson.content_url && !youtubeId(lesson.content_url) && (
             <video controls style={{ width: "100%", borderRadius: 12, marginBottom: 16 }} src={lesson.content_url} />
           )}
           {lesson.content_type === "audio" && lesson.content_url && (

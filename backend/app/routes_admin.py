@@ -14,6 +14,7 @@ from app.models_learning import (
     AdminUser,
     Quiz,
     QuizQuestion,
+    Article,
 )
 from app.schemas_learning import (
     CourseOut,
@@ -29,6 +30,8 @@ from app.schemas_learning import (
     DashboardStats,
     QuizCreate,
     QuizSummaryOut,
+    ArticleCreate,
+    ArticleOut,
 )
 from app.routes_auth import get_current_user
 
@@ -371,3 +374,57 @@ def suspend_user(
     db.commit()
     db.refresh(target)
     return target
+
+
+# -------------------------------- Articles ------------------------------------
+
+@router.get("/articles", response_model=list[ArticleOut])
+def list_all_articles(db: Session = Depends(get_db), _admin: User = Depends(require_admin)):
+    articles = db.query(Article).order_by(Article.created_at.desc()).all()
+    return [
+        ArticleOut(
+            id=a.id, title=a.title, slug=a.slug, body=a.body, pdf_url=a.pdf_url,
+            is_published=a.is_published, created_at=a.created_at, word_count=len(a.body.split()),
+        )
+        for a in articles
+    ]
+
+
+@router.post("/articles", response_model=ArticleOut, status_code=201)
+def create_article(payload: ArticleCreate, db: Session = Depends(get_db), _admin: User = Depends(require_admin)):
+    # ArticleCreate's own validator already enforces the 10,000-word cap —
+    # FastAPI returns 422 automatically if it's over, before we even get here.
+    if db.query(Article).filter(Article.slug == payload.slug).first():
+        raise HTTPException(status_code=400, detail="That slug is already in use")
+    article = Article(**payload.model_dump())
+    db.add(article)
+    db.commit()
+    db.refresh(article)
+    return ArticleOut(
+        id=article.id, title=article.title, slug=article.slug, body=article.body, pdf_url=article.pdf_url,
+        is_published=article.is_published, created_at=article.created_at, word_count=len(article.body.split()),
+    )
+
+
+@router.patch("/articles/{article_id}/publish", response_model=ArticleOut)
+def set_article_published(
+    article_id: str, publish: bool = True, db: Session = Depends(get_db), _admin: User = Depends(require_admin)
+):
+    article = db.query(Article).filter(Article.id == article_id).first()
+    if not article:
+        raise HTTPException(status_code=404, detail="Article not found")
+    article.is_published = publish
+    db.commit()
+    db.refresh(article)
+    return ArticleOut(
+        id=article.id, title=article.title, slug=article.slug, body=article.body, pdf_url=article.pdf_url,
+        is_published=article.is_published, created_at=article.created_at, word_count=len(article.body.split()),
+    )
+
+
+@router.delete("/articles/{article_id}", status_code=204)
+def delete_article(article_id: str, db: Session = Depends(get_db), _admin: User = Depends(require_admin)):
+    article = db.query(Article).filter(Article.id == article_id).first()
+    if article:
+        db.delete(article)
+        db.commit()

@@ -16,6 +16,7 @@ from app.routes_media import router as media_router
 from app.routes_stt import router as stt_router
 from app.routes_arabic import router as arabic_router
 from app.routes_admin import router as admin_router
+from app.routes_articles import router as articles_router
 
 app = FastAPI(title="Miftah API", version="0.1.0")
 
@@ -38,6 +39,7 @@ app.include_router(media_router)
 app.include_router(stt_router)
 app.include_router(arabic_router)
 app.include_router(admin_router)
+app.include_router(articles_router)
 
 
 @app.on_event("startup")

@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 
 # ---------------------------------------------------------------------------
@@ -90,6 +90,43 @@ class AnnouncementCreate(BaseModel):
     body: str
     image_url: str | None = None
     is_published: bool = False
+
+
+# ---------------------------------------------------------------------------
+# Articles (Journey to Jannah weekly articles)
+# ---------------------------------------------------------------------------
+
+ARTICLE_MAX_WORDS = 10000
+
+
+class ArticleCreate(BaseModel):
+    title: str
+    slug: str
+    body: str
+    pdf_url: str | None = None
+    is_published: bool = False
+
+    @field_validator("body")
+    @classmethod
+    def _enforce_word_limit(cls, v: str) -> str:
+        word_count = len(v.split())
+        if word_count > ARTICLE_MAX_WORDS:
+            raise ValueError(f"Article body is {word_count} words — the limit is {ARTICLE_MAX_WORDS}.")
+        return v
+
+
+class ArticleOut(BaseModel):
+    id: str
+    title: str
+    slug: str
+    body: str
+    pdf_url: str | None = None
+    is_published: bool
+    created_at: datetime
+    word_count: int = 0
+
+    class Config:
+        from_attributes = True
 
 
 # ---------------------------------------------------------------------------
