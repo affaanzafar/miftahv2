@@ -15,6 +15,12 @@ export default function AdminCourseEditorPage() {
 
   const [lessonForms, setLessonForms] = useState({}); // moduleId -> { title, content_type, content_url, body }
 
+  const [quizTitle, setQuizTitle] = useState("");
+  const [quizQuestions, setQuizQuestions] = useState([
+    { prompt: "", options: ["", ""], correct_index: 0 },
+  ]);
+  const [creatingQuiz, setCreatingQuiz] = useState(false);
+
   function refresh() {
     api
       .adminGetCourseDetail(courseId)
@@ -81,6 +87,42 @@ export default function AdminCourseEditorPage() {
       refresh();
     } catch (err) {
       setError(err.message);
+    }
+  }
+
+  function updateQuestion(qi, patch) {
+    setQuizQuestions((prev) => prev.map((q, i) => (i === qi ? { ...q, ...patch } : q)));
+  }
+  function updateOption(qi, oi, value) {
+    setQuizQuestions((prev) =>
+      prev.map((q, i) => (i === qi ? { ...q, options: q.options.map((o, j) => (j === oi ? value : o)) } : q))
+    );
+  }
+  function addOption(qi) {
+    setQuizQuestions((prev) => prev.map((q, i) => (i === qi ? { ...q, options: [...q.options, ""] } : q)));
+  }
+  function addQuestion() {
+    setQuizQuestions((prev) => [...prev, { prompt: "", options: ["", ""], correct_index: 0 }]);
+  }
+  function removeQuestion(qi) {
+    setQuizQuestions((prev) => prev.filter((_, i) => i !== qi));
+  }
+
+  async function handleCreateQuiz(e) {
+    e.preventDefault();
+    setCreatingQuiz(true);
+    setError("");
+    try {
+      await api.adminCreateQuiz(courseId, {
+        title: quizTitle,
+        questions: quizQuestions.map((q, i) => ({ ...q, order: i, options: q.options.filter(Boolean) })),
+      });
+      setQuizTitle("");
+      setQuizQuestions([{ prompt: "", options: ["", ""], correct_index: 0 }]);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setCreatingQuiz(false);
     }
   }
 
@@ -188,6 +230,54 @@ export default function AdminCourseEditorPage() {
           </details>
         </div>
       ))}
+
+      <div className="illuminated-card" style={{ marginBottom: 24 }}>
+        <h3 style={{ marginTop: 0 }}>Add a quiz</h3>
+        <form onSubmit={handleCreateQuiz} style={{ display: "grid", gap: 12 }}>
+          <input
+            placeholder="Quiz title"
+            value={quizTitle}
+            onChange={(e) => setQuizTitle(e.target.value)}
+            required
+          />
+          {quizQuestions.map((q, qi) => (
+            <div key={qi} style={{ border: "1px solid var(--glass-border)", borderRadius: 12, padding: 14 }}>
+              <div style={{ display: "flex", gap: 10, marginBottom: 10 }}>
+                <input
+                  placeholder={`Question ${qi + 1}`}
+                  value={q.prompt}
+                  onChange={(e) => updateQuestion(qi, { prompt: e.target.value })}
+                  style={{ flex: 1 }}
+                />
+                {quizQuestions.length > 1 && (
+                  <button type="button" className="danger" onClick={() => removeQuestion(qi)}>Remove</button>
+                )}
+              </div>
+              {q.options.map((opt, oi) => (
+                <div key={oi} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+                  <input
+                    type="radio"
+                    name={`correct-${qi}`}
+                    checked={q.correct_index === oi}
+                    onChange={() => updateQuestion(qi, { correct_index: oi })}
+                  />
+                  <input
+                    placeholder={`Option ${oi + 1}`}
+                    value={opt}
+                    onChange={(e) => updateOption(qi, oi, e.target.value)}
+                    style={{ flex: 1 }}
+                  />
+                </div>
+              ))}
+              <button type="button" className="secondary" onClick={() => addOption(qi)}>+ Option</button>
+            </div>
+          ))}
+          <button type="button" className="secondary" onClick={addQuestion}>+ Add question</button>
+          <button type="submit" disabled={creatingQuiz || !quizTitle || quizQuestions.some((q) => !q.prompt)}>
+            {creatingQuiz ? "Saving…" : "Save quiz"}
+          </button>
+        </form>
+      </div>
 
       <div className="illuminated-card">
         <h3 style={{ marginTop: 0 }}>Add a module</h3>

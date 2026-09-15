@@ -111,6 +111,43 @@ class Announcement(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
+class Quiz(Base):
+    __tablename__ = "quizzes"
+
+    id = Column(UUID(as_uuid=False), primary_key=True, default=gen_uuid)
+    course_id = Column(UUID(as_uuid=False), ForeignKey("courses.id"), nullable=False)
+    title = Column(String, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    course = relationship("Course")
+    questions = relationship(
+        "QuizQuestion", back_populates="quiz", order_by="QuizQuestion.order", cascade="all, delete-orphan"
+    )
+
+
+class QuizQuestion(Base):
+    __tablename__ = "quiz_questions"
+
+    id = Column(UUID(as_uuid=False), primary_key=True, default=gen_uuid)
+    quiz_id = Column(UUID(as_uuid=False), ForeignKey("quizzes.id"), nullable=False)
+    prompt = Column(String, nullable=False)
+    options = Column(Text, nullable=False)  # JSON-encoded list[str]
+    correct_index = Column(Integer, nullable=False)
+    order = Column(Integer, default=0)
+
+    quiz = relationship("Quiz", back_populates="questions")
+
+
+class QuizResult(Base):
+    __tablename__ = "quiz_results"
+
+    id = Column(UUID(as_uuid=False), primary_key=True, default=gen_uuid)
+    user_id = Column(UUID(as_uuid=False), ForeignKey("users.id"), nullable=False)
+    quiz_id = Column(UUID(as_uuid=False), ForeignKey("quizzes.id"), nullable=False)
+    score_pct = Column(Integer, nullable=False)
+    taken_at = Column(DateTime, default=datetime.utcnow)
+
+
 class AdminUser(Base):
     __tablename__ = "admin_users"
 

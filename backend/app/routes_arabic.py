@@ -1,11 +1,33 @@
+import json
+
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session, joinedload
 
 from app.database import get_db
 from app.models import User
-from app.models_learning import Course, Module, Lesson, Enrollment, LessonCompletion
-from app.schemas_learning import CourseOut, CourseDetailOut, ModuleOut, LessonOut
+from app.models_learning import (
+    Course,
+    Module,
+    Lesson,
+    Enrollment,
+    LessonCompletion,
+    Quiz,
+    QuizQuestion,
+    QuizResult,
+)
+from app.schemas_learning import (
+    CourseOut,
+    CourseDetailOut,
+    ModuleOut,
+    LessonOut,
+    QuizSummaryOut,
+    QuizDetailOut,
+    QuizQuestionPublicOut,
+    QuizSubmission,
+    QuizResultOut,
+    QuizHistoryOut,
+)
 from app.auth import decode_access_token
 
 router = APIRouter(prefix="/arabic", tags=["arabic"])
@@ -172,3 +194,97 @@ def complete_lesson(lesson_id: str, db: Session = Depends(get_db), current_user:
         db.add(Enrollment(user_id=current_user.id, course_id=module.course_id))
 
     db.commit()
+
+
+# --------------------------------- Quizzes -----------------------------------
+
+@router.get("/quizzes", response_model=list[QuizSummaryOut])
+def list_quizzes(db: Session = Depends(get_db)):
+    quizzes = (
+        db.query(Quiz)
+        .join(Course, Quiz.course_id == Course.id)
+        .filter(Course.is_published == True)  # noqa: E712
+        .options(joinedload(Quiz.course), joinedload(Quiz.questions))
+        .all()
+    )
+    return [
+        QuizSummaryOut(
+            id=q.id,
+            title=q.title,
+            course_title=q.course.title,
+            course_slug=q.course.slug,
+            question_count=len(q.questions),
+        )
+        for q in quizzes
+    ]
+
+
+@router.get("/quizzes/{quiz_id}", response_model=QuizDetailOut)
+def get_quiz(quiz_id: str, db: Session = Depends(get_db)):
+    quiz = (
+        db.query(Quiz)
+        .options(joinedload(Quiz.course), joinedload(Quiz.questions))
+        .filter(Quiz.id == quiz_id)
+        .first()
+    )
+    if not quiz:
+        raise HTTPException(status_code=404, detail="Quiz not found")
+    return QuizDetailOut(
+        id=quiz.id,
+        title=quiz.title,
+        course_title=quiz.course.title,
+        questions=[
+            QuizQuestionPublicOut(id=q.id, prompt=q.prompt, options=json.loads(q.options), order=q.order)
+            for q in sorted(quiz.questions, key=lambda x: x.order)
+        ],
+    )
+
+
+@router.post("/quizzes/{quiz_id}/submit", response_model=QuizResultOut)
+def submit_quiz(
+    quiz_id: str,
+    payload: QuizSubmission,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(_require_user),
+):
+    quiz = db.query(Quiz).options(joinedload(Quiz.questions)).filter(Quiz.id == quiz_id).first()
+    if not quiz:
+        raise HTTPException(status_code=404, detail="Quiz not found")
+
+    questions = sorted(quiz.questions, key=lambda x: x.order)
+    if len(payload.answers) != len(questions):
+        raise HTTPException(status_code=400, detail="Answer count doesn't match question count")
+
+    correct = sum(1 for q, a in zip(questions, payload.answers) if a == q.correct_index)
+    total = len(questions)
+    score_pct = round(100 * correct / total) if total else 0
+
+    db.add(QuizResult(user_id=current_user.id, quiz_id=quiz_id, score_pct=score_pct))
+    db.commit()
+
+    return QuizResultOut(quiz_id=quiz_id, quiz_title=quiz.title, score_pct=score_pct, correct_count=correct, total=total)
+
+
+@router.get("/my-quiz-results", response_model=list[QuizHistoryOut])
+def my_quiz_results(db: Session = Depends(get_db), current_user: User = Depends(_require_user)):
+    results = (
+        db.query(QuizResult)
+        .filter(QuizResult.user_id == current_user.id)
+        .order_by(QuizResult.taken_at.desc())
+        .all()
+    )
+    out = []
+    for r in results:
+        quiz = db.query(Quiz).options(joinedload(Quiz.course)).filter(Quiz.id == r.quiz_id).first()
+        if not quiz:
+            continue
+        out.append(
+            QuizHistoryOut(
+                quiz_id=r.quiz_id,
+                quiz_title=quiz.title,
+                course_title=quiz.course.title,
+                score_pct=r.score_pct,
+                taken_at=r.taken_at,
+            )
+        )
+    return out

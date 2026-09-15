@@ -12,6 +12,7 @@ const LINKS = [
   { href: "/miftah/hifz", label: "Hifz" },
   { href: "/miftah/miftah-method", label: "Miftah Method" },
   { href: "/miftah/circles", label: "Circles" },
+  { href: "/arabic", label: "Arabic Learning" },
   { href: "/miftah/account", label: "Account" },
 ];
 

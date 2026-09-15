@@ -120,6 +120,10 @@ export const api = {
   getArabicCourse: (slug) => request(`/arabic/courses/${slug}`),
   enrollInCourse: (slug) => request(`/arabic/courses/${slug}/enroll`, { method: "POST" }),
   completeLesson: (lessonId) => request(`/arabic/lessons/${lessonId}/complete`, { method: "POST" }),
+  listQuizzes: () => request("/arabic/quizzes"),
+  getQuiz: (quizId) => request(`/arabic/quizzes/${quizId}`),
+  submitQuiz: (quizId, answers) => request(`/arabic/quizzes/${quizId}/submit`, { method: "POST", body: { answers } }),
+  myQuizResults: () => request("/arabic/my-quiz-results"),
 
   // --- Admin Studio (all admin-gated server-side via AdminUser) ---
   adminWhoAmI: () => request("/admin/me"),
@@ -137,6 +141,8 @@ export const api = {
   adminCreateLesson: (moduleId, payload) =>
     request(`/admin/modules/${moduleId}/lessons`, { method: "POST", body: payload }),
   adminDeleteLesson: (lessonId) => request(`/admin/lessons/${lessonId}`, { method: "DELETE" }),
+  adminCreateQuiz: (courseId, payload) =>
+    request(`/admin/courses/${courseId}/quizzes`, { method: "POST", body: payload }),
   adminListAnnouncements: () => request("/admin/announcements"),
   adminCreateAnnouncement: (payload) => request("/admin/announcements", { method: "POST", body: payload }),
   adminPublishAnnouncement: (id, publish) =>

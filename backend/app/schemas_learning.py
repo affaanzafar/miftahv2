@@ -93,6 +93,68 @@ class AnnouncementCreate(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# Quizzes
+# ---------------------------------------------------------------------------
+
+class QuizQuestionCreate(BaseModel):
+    prompt: str
+    options: list[str]
+    correct_index: int
+    order: int = 0
+
+
+class QuizCreate(BaseModel):
+    title: str
+    questions: list[QuizQuestionCreate]
+
+
+class QuizQuestionPublicOut(BaseModel):
+    """No correct_index — this is what a person taking the quiz sees."""
+    id: str
+    prompt: str
+    options: list[str]
+    order: int
+
+
+class QuizSummaryOut(BaseModel):
+    id: str
+    title: str
+    course_title: str
+    course_slug: str
+    question_count: int
+
+
+class QuizDetailOut(BaseModel):
+    id: str
+    title: str
+    course_title: str
+    questions: list[QuizQuestionPublicOut]
+
+
+class QuizSubmission(BaseModel):
+    answers: list[int]
+
+
+class QuizResultOut(BaseModel):
+    quiz_id: str
+    quiz_title: str
+    score_pct: int
+    correct_count: int
+    total: int
+
+
+class QuizHistoryOut(BaseModel):
+    quiz_id: str
+    quiz_title: str
+    course_title: str
+    score_pct: int
+    taken_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+# ---------------------------------------------------------------------------
 # Admin / users
 # ---------------------------------------------------------------------------
 

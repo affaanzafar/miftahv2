@@ -1,9 +1,20 @@
+import json
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session, joinedload
 
 from app.database import get_db
 from app.models import User
-from app.models_learning import Course, Module, Lesson, Enrollment, Announcement, AdminUser
+from app.models_learning import (
+    Course,
+    Module,
+    Lesson,
+    Enrollment,
+    Announcement,
+    AdminUser,
+    Quiz,
+    QuizQuestion,
+)
 from app.schemas_learning import (
     CourseOut,
     CourseDetailOut,
@@ -16,6 +27,8 @@ from app.schemas_learning import (
     AnnouncementCreate,
     AdminUserOut,
     DashboardStats,
+    QuizCreate,
+    QuizSummaryOut,
 )
 from app.routes_auth import get_current_user
 
@@ -230,6 +243,64 @@ def delete_lesson(lesson_id: str, db: Session = Depends(get_db), _admin: User = 
     lesson = db.query(Lesson).filter(Lesson.id == lesson_id).first()
     if lesson:
         db.delete(lesson)
+        db.commit()
+
+
+# --------------------------------- Quizzes -----------------------------------
+
+@router.get("/courses/{course_id}/quizzes", response_model=list[QuizSummaryOut])
+def list_course_quizzes(course_id: str, db: Session = Depends(get_db), _admin: User = Depends(require_admin)):
+    course = db.query(Course).filter(Course.id == course_id).first()
+    if not course:
+        raise HTTPException(status_code=404, detail="Course not found")
+    quizzes = db.query(Quiz).filter(Quiz.course_id == course_id).all()
+    return [
+        QuizSummaryOut(
+            id=q.id, title=q.title, course_title=course.title, course_slug=course.slug,
+            question_count=len(q.questions),
+        )
+        for q in quizzes
+    ]
+
+
+@router.post("/courses/{course_id}/quizzes", response_model=QuizSummaryOut, status_code=201)
+def create_quiz(
+    course_id: str, payload: QuizCreate, db: Session = Depends(get_db), _admin: User = Depends(require_admin)
+):
+    course = db.query(Course).filter(Course.id == course_id).first()
+    if not course:
+        raise HTTPException(status_code=404, detail="Course not found")
+    if not payload.questions:
+        raise HTTPException(status_code=400, detail="A quiz needs at least one question")
+
+    quiz = Quiz(course_id=course_id, title=payload.title)
+    db.add(quiz)
+    db.flush()
+    for q in payload.questions:
+        if not (0 <= q.correct_index < len(q.options)):
+            raise HTTPException(status_code=400, detail=f"correct_index out of range for '{q.prompt}'")
+        db.add(
+            QuizQuestion(
+                quiz_id=quiz.id,
+                prompt=q.prompt,
+                options=json.dumps(q.options),
+                correct_index=q.correct_index,
+                order=q.order,
+            )
+        )
+    db.commit()
+    db.refresh(quiz)
+    return QuizSummaryOut(
+        id=quiz.id, title=quiz.title, course_title=course.title, course_slug=course.slug,
+        question_count=len(payload.questions),
+    )
+
+
+@router.delete("/quizzes/{quiz_id}", status_code=204)
+def delete_quiz(quiz_id: str, db: Session = Depends(get_db), _admin: User = Depends(require_admin)):
+    quiz = db.query(Quiz).filter(Quiz.id == quiz_id).first()
+    if quiz:
+        db.delete(quiz)
         db.commit()
 
 
