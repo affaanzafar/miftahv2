@@ -1,4 +1,7 @@
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+// Use a relative proxy by default so preview/mobile browsers don't try to call
+// their own localhost. Set NEXT_PUBLIC_API_URL only when the backend is truly
+// hosted on a public origin.
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "/api";
 
 export function getToken() {
   if (typeof window === "undefined") return null;

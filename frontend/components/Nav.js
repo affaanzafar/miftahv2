@@ -10,6 +10,7 @@ import { clearToken, getToken } from "../lib/api";
 const LINKS = [
   { href: "/miftah", label: "Home" },
   { href: "/miftah/hifz", label: "Hifz" },
+  { href: "/miftah/tracker", label: "Tracker" },
   { href: "/miftah/miftah-method", label: "Miftah Method" },
   { href: "/miftah/circles", label: "Circles" },
   { href: "/arabic", label: "Arabic Learning" },

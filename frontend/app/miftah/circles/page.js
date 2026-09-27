@@ -233,7 +233,7 @@ function CircleChat({ circleId, myUserId }) {
           </button>
           <input
             type="text"
-            placeholder="Message the circle…"
+            placeholder="Share a quick update…"
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
             maxLength={2000}
@@ -366,7 +366,7 @@ export default function CirclesPage() {
           <>
             <form onSubmit={handleCreate} className="card">
               <label htmlFor="circleName">Create a circle</label>
-              <input id="circleName" type="text" placeholder="Circle name" value={name} onChange={(e) => setName(e.target.value)} required />
+              <input id="circleName" type="text" placeholder="Name this circle" value={name} onChange={(e) => setName(e.target.value)} required />
               <label htmlFor="circleDesc">Description (optional)</label>
               <textarea id="circleDesc" rows={2} value={description} onChange={(e) => setDescription(e.target.value)} />
               <button type="submit">Create circle</button>
@@ -415,7 +415,7 @@ export default function CirclesPage() {
                         <form className="inline-form" onSubmit={(e) => handleInvite(e, c.id)}>
                           <input
                             type="email"
-                            placeholder="Add someone by email"
+                            placeholder="friend@example.com"
                             value={inviteEmail}
                             onChange={(e) => setInviteEmail(e.target.value)}
                             required

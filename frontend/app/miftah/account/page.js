@@ -116,7 +116,7 @@ export default function AccountPage() {
                     type="text"
                     value={nameInput}
                     onChange={(e) => setNameInput(e.target.value)}
-                    placeholder="Your name"
+                    placeholder="What should we call you?"
                     required
                   />
                   <button type="submit" disabled={savingName}>{savingName ? "Saving…" : "Save"}</button>
@@ -126,7 +126,7 @@ export default function AccountPage() {
                 </form>
               ) : (
                 <h2 style={{ margin: "0 0 4px", fontFamily: "Space Grotesk, serif" }}>
-                  {profile.display_name || "Unnamed"}{" "}
+                  {profile.display_name || "No name yet"}{" "}
                   <button
                     className="secondary"
                     style={{ fontSize: 12, padding: "4px 12px", marginLeft: 8 }}
@@ -193,7 +193,7 @@ export default function AccountPage() {
           <form className="search-row" onSubmit={handleSearch}>
             <input
               type="text"
-              placeholder="Search by name…"
+              placeholder="Find someone by name…"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
@@ -211,7 +211,7 @@ export default function AccountPage() {
           listForTab.map((u) => (
             <div key={u.id} className="card card-row">
               <div>
-                <h3 style={{ margin: 0 }}>{u.display_name || "Unnamed"}</h3>
+                <h3 style={{ margin: 0 }}>{u.display_name || "No name yet"}</h3>
                 <span className="muted">{u.memorized_ayah_count} ayahs memorized · {u.follower_count} followers</span>
               </div>
               {u.is_following ? (

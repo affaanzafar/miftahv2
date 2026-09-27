@@ -1,100 +1,136 @@
 """
 Correction engine: compares a user's recognized speech (a plain string, from
-the browser's Web Speech API or any STT source) against the reference text of
-an ayah, word by word, and flags correct / wrong / missed / added words.
+browser speech recognition or a Quran-tuned STT source) against the reference
+text of an ayah, word by word, and flags correct / wrong / missed / added.
 
-Uses a Levenshtein-based sequence alignment (same family of algorithm as
-`difflib`), operating on words rather than characters. This is intentionally
-simple and deterministic — no ML — which makes it a solid baseline you can
-later replace or augment with a proper forced-alignment model without
-changing the API shape below.
+The important bit is normalization: Quran text is usually Uthmani script,
+while speech recognizers often return simplified modern Arabic. We therefore
+compare *pronunciation-friendly variants* instead of raw Unicode strings. That
+keeps visually different but recitationally equivalent spellings from being
+marked wrong: dagger/small alif, tatweel, alef-wasla, hamza seats, standalone
+hamza marks, Quran annotation marks, etc.
 """
 
 from dataclasses import dataclass
+import unicodedata
 
+# Arabic combining marks: ordinary tashkeel, Quranic annotation signs, and
+# Arabic Extended-A/B marks used by several Quran data sources. These are
+# display/recitation hints, not separate words, so they should not make an
+# otherwise correct transcript fail.
 _TASHKEEL_RANGES = [
-    (0x064B, 0x065F),  # standard tashkeel + extended Quranic marks
-    (0x06D6, 0x06ED),  # Quranic annotation signs (sajda, pause marks, etc.)
+    (0x0610, 0x061A),
+    (0x064B, 0x065F),
+    (0x06D6, 0x06ED),
+    (0x08D3, 0x08FF),
 ]
 
-_DAGGER_ALEF = "\u0670"   # superscript alef — represents a long "aa" that
-                          # Uthmani script sometimes writes as a full letter
-                          # and sometimes omits, word by word (e.g. omitted
-                          # in الرحمن/الرحيم, kept in العالمين) — no single
-                          # rule is correct for every word.
-_ALEF_WASLA = "\u0671"    # connecting-hamza alef — always folds to a plain
-                          # alef in ordinary spelling, no ambiguity here.
+_DAGGER_ALEF = "\u0670"  # superscript/small alef
+_ALEF_WASLA = "\u0671"  # ٱ
 _PLAIN_ALEF = "\u0627"
-_TATWEEL = "\u0640"       # elongation stroke — purely typographic (used to
-                          # stretch a letter, often paired with a dagger
-                          # alef, e.g. سَـٰنَ). Carries no sound of its own,
-                          # so it must be removed everywhere in the word, not
-                          # just trimmed off the ends — it was previously
-                          # only stripped at the boundaries, so any tatweel
-                          # sitting mid-word (very common in Uthmani script,
-                          # e.g. الْإِنسَـٰنَ) survived normalization and
-                          # silently broke the match against STT output.
-_HAMZA_ALEFS = "\u0623\u0625\u0622"  # أ إ آ — hamza/madda-on-alef forms.
-                          # Web Speech API (and STT generally) essentially
-                          # never reproduces the hamza seat and just writes
-                          # a plain alef, so إِنسَـٰنَ (reference) vs انسان
-                          # (recognized) mismatched even after tashkeel and
-                          # tatweel were both removed. Folding both sides to
-                          # plain alef removes that gap. This does mean two
-                          # reference words that differ ONLY by hamza seat
-                          # (rare) become indistinguishable from STT input —
-                          # an acceptable trade since STT can't tell them
-                          # apart either.
-_TEH_MARBUTA = "\u0629"   # ة — sounds identical to plain heh (ه) in pause
-                          # form, and STT reliably picks one or the other
-                          # inconsistently (e.g. نُّطْفَةٍ recognized as
-                          # نطفه). Folded to heh on both sides for the same
-                          # reason as the hamza-seat alefs above.
+_TATWEEL = "\u0640"
+_HAMZA_ALEFS = "\u0623\u0625\u0622"  # أ إ آ
+_STANDALONE_HAMZA = "\u0621"  # ء
+_HAMZA_ON_WAW = "\u0624"  # ؤ
+_HAMZA_ON_YA = "\u0626"  # ئ
+_TEH_MARBUTA = "\u0629"
 _HEH = "\u0647"
+_ARABIC_PUNCTUATION = " .,!؟?،؛:؛ـ۝۞﴾﴿()[]{}\"'`“”‘’\n\t\r"
+
+
+def _is_diacritic(ch: str) -> bool:
+    # Keep dagger/small alef so _normalize_variants can accept both the
+    # dropped and full-alef spellings. unicodedata marks it as Mn, so it
+    # needs this explicit exception.
+    if ch == _DAGGER_ALEF:
+        return False
+    cp = ord(ch)
+    return any(lo <= cp <= hi for lo, hi in _TASHKEEL_RANGES) or unicodedata.category(ch) in {"Mn", "Me"}
 
 
 def _strip_tashkeel(word: str) -> str:
-    def is_diacritic(ch: str) -> bool:
-        cp = ord(ch)
-        return any(lo <= cp <= hi for lo, hi in _TASHKEEL_RANGES)
-
-    return "".join(ch for ch in word if not is_diacritic(ch))
+    return "".join(ch for ch in unicodedata.normalize("NFKC", word) if not _is_diacritic(ch))
 
 
-def _fold_letter_variants(word: str) -> str:
+def _strip_outer_punctuation(word: str) -> str:
+    return word.strip(_ARABIC_PUNCTUATION).lower()
+
+
+def _fold_stable_letter_variants(word: str) -> str:
+    """Fold variants that are never useful to distinguish for STT matching."""
     cleaned = word.replace(_ALEF_WASLA, _PLAIN_ALEF)
     for hamza_alef in _HAMZA_ALEFS:
         cleaned = cleaned.replace(hamza_alef, _PLAIN_ALEF)
+    # In pause-form STT often swaps ة/ه. Folding both to ه is much less noisy
+    # for recitation checking while still leaving the displayed expected word
+    # untouched in the UI.
     cleaned = cleaned.replace(_TEH_MARBUTA, _HEH)
     return cleaned
 
 
-def _normalize(word: str) -> str:
-    """Normalize a recognized (STT) word: strip tashkeel and tatweel, fold
-    alef wasla and hamza-seat alefs to a plain alef, drop dagger alef (STT
-    output never contains dagger alef or tatweel in the first place, so
-    there's nothing to fold on this side beyond cleanup)."""
-    cleaned = _strip_tashkeel(word)
-    cleaned = cleaned.replace(_TATWEEL, "")
-    cleaned = _fold_letter_variants(cleaned)
-    cleaned = cleaned.replace(_DAGGER_ALEF, "")
-    return cleaned.strip(" .,!?").lower()
+def _expand_hamza_variants(word: str) -> set[str]:
+    """Return spellings that STT commonly emits for hamza-bearing words.
+
+    Examples:
+    - Uthmani مَسْـُٔولًا can be returned as مسؤولا, مسولا, or مسئولاً.
+    - يؤمنون may be returned with ؤ, with plain و, or occasionally with the
+      hamza omitted. We keep all variants and match by set intersection.
+    """
+    variants = {word}
+    changed = True
+    while changed:
+        changed = False
+        for item in list(variants):
+            additions = set()
+            if _STANDALONE_HAMZA in item:
+                additions.add(item.replace(_STANDALONE_HAMZA, ""))
+            if _HAMZA_ON_WAW in item:
+                additions.add(item.replace(_HAMZA_ON_WAW, "و"))
+                additions.add(item.replace(_HAMZA_ON_WAW, ""))
+            if _HAMZA_ON_YA in item:
+                additions.add(item.replace(_HAMZA_ON_YA, "ي"))
+                additions.add(item.replace(_HAMZA_ON_YA, ""))
+            before = len(variants)
+            variants |= {_strip_outer_punctuation(v) for v in additions if _strip_outer_punctuation(v)}
+            changed = changed or len(variants) != before
+    return {_strip_outer_punctuation(v) for v in variants if _strip_outer_punctuation(v)}
 
 
 def _normalize_variants(word: str) -> set[str]:
-    """Normalize a *reference* (Uthmani) word to the set of spellings a
-    correct recitation could plausibly be transcribed as. Tatweel is removed
-    everywhere (purely typographic, no sound). Alef wasla and hamza-seat
-    alefs always fold to a plain alef (STT doesn't distinguish them). A
-    dagger alef is ambiguous — some words' standard spelling drops the long
-    vowel entirely, others keep it as a full alef — so both variants are
-    accepted rather than guessing."""
-    cleaned = _strip_tashkeel(word)
-    cleaned = cleaned.replace(_TATWEEL, "")
-    cleaned = _fold_letter_variants(cleaned)
-    dropped = cleaned.replace(_DAGGER_ALEF, "").strip(" .,!?").lower()
-    expanded = cleaned.replace(_DAGGER_ALEF, _PLAIN_ALEF).strip(" .,!?").lower()
-    return {dropped, expanded}
+    """Return the set of normalized spellings accepted for a single word.
+
+    This is intentionally used for both the Uthmani reference and recognized
+    text. Matching by intersection is more robust than forcing either side to
+    one canonical spelling because Quran STT can choose different hamza seats
+    and small-alif renderings depending on device/model.
+    """
+    cleaned = _strip_tashkeel(word).replace(_TATWEEL, "")
+    cleaned = _fold_stable_letter_variants(cleaned)
+
+    # Dagger/small alef is ambiguous in text output: sometimes modern Arabic
+    # writes the corresponding long vowel as a full ا, sometimes it does not.
+    base_forms = {
+        cleaned.replace(_DAGGER_ALEF, ""),
+        cleaned.replace(_DAGGER_ALEF, _PLAIN_ALEF),
+    }
+
+    variants: set[str] = set()
+    for base in base_forms:
+        base = _strip_outer_punctuation(base)
+        if not base:
+            continue
+        variants |= _expand_hamza_variants(base)
+
+    return variants or {""}
+
+
+def _normalize(word: str) -> str:
+    """Best-effort single canonical form kept for debugging/tests.
+
+    The aligner below uses _normalize_variants for the real comparison.
+    """
+    variants = sorted(_normalize_variants(word), key=lambda value: (len(value), value))
+    return variants[0] if variants else ""
 
 
 @dataclass
@@ -107,19 +143,17 @@ class WordResult:
 
 def align_words(reference_words: list[str], recognized_words: list[str]) -> list[WordResult]:
     """
-    Standard Needleman-Wunsch-style edit-distance alignment between two word
-    sequences, then walk the alignment to classify each position. A
-    reference word matches if the recognized word equals ANY of its accepted
-    spelling variants (see _normalize_variants).
+    Needleman-Wunsch-style edit-distance alignment between two word sequences.
+    A reference word matches if its accepted normalized variants intersect with
+    the recognized word's normalized variants.
     """
     ref_variants = [_normalize_variants(w) for w in reference_words]
-    rec_norm = [_normalize(w) for w in recognized_words]
+    rec_variants = [_normalize_variants(w) for w in recognized_words]
 
     def is_match(i: int, j: int) -> bool:
-        return rec_norm[j] in ref_variants[i]
+        return bool(ref_variants[i] & rec_variants[j])
 
-    n, m = len(ref_variants), len(rec_norm)
-    # dp[i][j] = edit distance between ref[:i] and rec[:j]
+    n, m = len(ref_variants), len(rec_variants)
     dp = [[0] * (m + 1) for _ in range(n + 1)]
     for i in range(n + 1):
         dp[i][0] = i
@@ -136,7 +170,6 @@ def align_words(reference_words: list[str], recognized_words: list[str]) -> list
                     dp[i - 1][j - 1],  # substituted (wrong word)
                 )
 
-    # backtrack
     i, j = n, m
     results: list[WordResult] = []
     while i > 0 or j > 0:

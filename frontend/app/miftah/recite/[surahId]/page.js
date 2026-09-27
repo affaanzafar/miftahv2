@@ -57,6 +57,7 @@ export default function RecitePage() {
   const lastProcessedFinalRef = useRef("");
   const focusIndexRef = useRef(0);
   const ayahRefs = useRef({});
+  const ayahResultsRef = useRef({});
   const settleTimerRef = useRef(null);
   const checkingRef = useRef(false); // mirrors `checking` state but read-safe inside async closures
   const pendingRecheckRef = useRef(false);
@@ -64,6 +65,10 @@ export default function RecitePage() {
   useEffect(() => {
     focusIndexRef.current = focusIndex;
   }, [focusIndex]);
+
+  useEffect(() => {
+    ayahResultsRef.current = ayahResults;
+  }, [ayahResults]);
 
   useEffect(() => {
     if (!surahId) return;
@@ -88,15 +93,28 @@ export default function RecitePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focusIndex]);
 
+  function resetRunState() {
+    if (settleTimerRef.current) clearTimeout(settleTimerRef.current);
+    bufferRef.current = "";
+    lastProcessedFinalRef.current = "";
+    ayahResultsRef.current = {};
+    checkingRef.current = false;
+    pendingRecheckRef.current = false;
+    setAyahResults({});
+    setSessionSummary(null);
+    setAppliedToHifz(false);
+    setChecking(false);
+    reset();
+  }
+
   async function handleStart() {
     if (!surah || ayahsInRange.length === 0) return;
+    resetRunState();
     if (!loggedIn) {
       // No account: skip session creation altogether. Correction still
       // runs live via the guest-check endpoint, nothing is persisted.
       setSessionId(GUEST_SESSION);
       setFocusIndex(0);
-      bufferRef.current = "";
-      lastProcessedFinalRef.current = "";
       start();
       return;
     }
@@ -109,8 +127,6 @@ export default function RecitePage() {
       );
       setSessionId(session_id);
       setFocusIndex(0);
-      bufferRef.current = "";
-      lastProcessedFinalRef.current = "";
       start();
     } catch (e) {
       setError(e.message);
@@ -186,7 +202,11 @@ export default function RecitePage() {
       const res = loggedIn
         ? await api.submitAttempt(sessionId, ayah.id, bufferForCheck)
         : await api.guestCheckAttempt(ayah.id, bufferForCheck);
-      setAyahResults((prev) => ({ ...prev, [ayah.id]: res }));
+      setAyahResults((prev) => {
+        const next = { ...prev, [ayah.id]: res };
+        ayahResultsRef.current = next;
+        return next;
+      });
 
       // Trim exactly the words the alignment actually consumed for this
       // ayah — not a fixed expectedWordCount — since a "missed" expected
@@ -225,7 +245,7 @@ export default function RecitePage() {
     if (!loggedIn) {
       // No session on the backend to complete — the accuracy we show is
       // computed from what's already been scored client-side in ayahResults.
-      const scored = Object.values(ayahResults);
+      const scored = Object.values(ayahResultsRef.current);
       const avgAccuracy = scored.length
         ? Math.round(scored.reduce((sum, r) => sum + r.ayah_accuracy, 0) / scored.length)
         : 0;

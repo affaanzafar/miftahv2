@@ -141,7 +141,7 @@ export default function HifzPage() {
           <input
             id="goalTitle"
             type="text"
-            placeholder="e.g. Memorize Juz 30 in 3 months"
+            placeholder="Try: Juz 30 in 3 months"
             value={goalTitle}
             onChange={(e) => setGoalTitle(e.target.value)}
             required
